@@ -1,0 +1,27 @@
+{
+ "frameWidth": 104,
+ "frameHeight": 88,
+ "anchor": {
+  "x": 69,
+  "y": 87
+ },
+ "rows": {
+  "walk": 0,
+  "jump": 1,
+  "idle": 2
+ },
+ "frames": [
+  "walk_1.png",
+  "walk_2.png",
+  "walk_3.png",
+  "walk_4.png",
+  "jump_1.png",
+  "jump_2.png",
+  "jump_3.png",
+  "jump_4.png",
+  "idle_1.png",
+  "idle_2.png",
+  "idle_3.png",
+  "idle_4.png"
+ ]
+}
