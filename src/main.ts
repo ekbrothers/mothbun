@@ -16,8 +16,9 @@ const RIVER = 34; // river height above the ground line
 
 type State = 'loading' | 'title' | 'playing' | 'finale' | 'clear' | 'over';
 
-// Level 1 runs from Music Hall in Over-the-Rhine, past the Roebling Bridge, to Mother
-// of God in Covington. Each set piece is centered on screen when the camera reaches
+// Level 1 front-loads the landmarks so even a short play sees them: Music Hall, the
+// Roebling Bridge, and Mother of God all pass in the first half minute. Rowhouses fill
+// the rest, and Mother of God returns at the end for the finale. Each set piece is centered on screen when the camera reaches
 // `at`, and scrolls at its own parallax (farther back is slower).
 interface Piece {
   view: BuildingView;
@@ -25,6 +26,10 @@ interface Piece {
   parallax: number;
   bridge?: boolean;
 }
+
+// camera positions where each early landmark is centered
+const BRIDGE_AT = 3200;
+const CHURCH_EARLY_AT = 6500;
 
 const params = new URLSearchParams(location.search);
 const demo = params.has('demo'); // plays itself
@@ -696,10 +701,11 @@ async function boot() {
     { view: new BuildingView(assets.buildings['music-hall'], 0), at: 0, parallax: 0.6 },
     {
       view: new BuildingView({ dark: assets.bridge, windows: [], mask: assets.bridgeTowers }, 2.3, 0.6),
-      at: T.levelLength * 0.5,
+      at: BRIDGE_AT,
       parallax: 0.35,
       bridge: true,
     },
+    { view: new BuildingView(assets.buildings['mother-of-god'], 2), at: CHURCH_EARLY_AT, parallax: 0.6 },
     { view: church, at: T.levelLength, parallax: 0.6 },
   ];
   // rowhouses everywhere except around the landmarks and along the river by the bridge
@@ -707,7 +713,8 @@ async function boot() {
   const clear = (at: number, w: number): [number, number] => [at - (w / 2 + 40) / STREET_PARALLAX, at + (w / 2 + 40) / STREET_PARALLAX];
   rowhouses = buildRowhouses(-3000, L + 3000, [
     clear(0, pieces[0].view.width),
-    [L * 0.5 - 2600, L * 0.5 + 2600],
+    [BRIDGE_AT - 2600, CHURCH_EARLY_AT],
+    clear(CHURCH_EARLY_AT, church.width),
     clear(L, church.width),
   ], STREET_PARALLAX);
   setState('title');
