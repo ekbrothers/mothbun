@@ -3,6 +3,7 @@ import { Sound } from './audio';
 import { BuildingView, makeCanvas } from './building';
 import { Input, type Zone } from './input';
 import { pixelText, tint } from './pixel-text';
+import { buildRowhouses, type Rowhouse } from './rowhouses';
 import { Player } from './player';
 import { TUNING as T } from './tuning';
 import { World, type Obstacle } from './world';
@@ -37,6 +38,8 @@ input.onGesture = () => sound.unlock();
 
 let assets: Assets;
 let pieces: Piece[] = [];
+let rowhouses: Rowhouse[] = [];
+const STREET_PARALLAX = 0.6;
 let church: BuildingView;
 let state: State = 'loading';
 let W = 0, H = VH, ground = VH - STREET;
@@ -65,14 +68,14 @@ const score = () => Math.floor(distance / 10) + orbCount * T.orbPoints + stuns *
 const playerX = () => Math.round(Math.min(W * 0.25, 260));
 
 // on-screen buttons, in art pixels
-const glareBtn = () => ({ x: 56, y: H - 64, r: 30 });
+const glareBtn = () => ({ x: 74, y: H - 84, r: 42 });
 const muteBtn = () => ({ x: W - 46, y: 10, w: 34, h: 30 });
 
 function zoneAt(x: number, y: number): Zone {
   const m = muteBtn();
   if (x >= m.x && x <= m.x + m.w && y >= m.y && y <= m.y + m.h) return 'mute';
   const g = glareBtn();
-  if (state === 'playing' && Math.hypot(x - g.x, y - g.y) <= g.r + 10) return 'glare';
+  if (state === 'playing' && Math.hypot(x - g.x, y - g.y) <= g.r + 24) return 'glare';
   return 'jump';
 }
 
@@ -262,6 +265,7 @@ function draw() {
   if (shake > 0) ctx.translate(Math.round((Math.random() - 0.5) * 8 * shake), Math.round((Math.random() - 0.5) * 6 * shake));
   drawSky();
   drawSkyline();
+  drawRowhouses();
   for (const p of pieces) drawPiece(p);
   drawStreet();
   if (state !== 'title') {
@@ -328,6 +332,14 @@ function drawSkyline() {
       ctx.fillStyle = '#c9a25e';
       for (const [lx, ly] of b.lit) ctx.fillRect(x + lx, ground - b.h + ly, 2, 3);
     }
+  }
+}
+
+function drawRowhouses() {
+  for (const r of rowhouses) {
+    const x = Math.round(W / 2 - r.canvas.width / 2 + (r.at - camX) * STREET_PARALLAX);
+    if (x > W || x + r.canvas.width < 0) continue;
+    ctx.drawImage(r.canvas, x, ground - r.canvas.height);
   }
 }
 
@@ -581,11 +593,13 @@ function drawGlareButton() {
   // a pixel eye
   ctx.globalAlpha = ready ? 1 : 0.5;
   ctx.fillStyle = '#ff2a2a';
-  ctx.fillRect(x - 12, y - 4, 24, 8);
-  ctx.fillRect(x - 8, y - 8, 16, 16);
+  ctx.fillRect(x - 18, y - 6, 36, 12);
+  ctx.fillRect(x - 12, y - 12, 24, 24);
   ctx.fillStyle = '#ffd0c0';
-  ctx.fillRect(x - 3, y - 3, 6, 6);
+  ctx.fillRect(x - 4, y - 4, 8, 8);
   ctx.globalAlpha = 1;
+  // label for the first few seconds of a run
+  if (stateT < 6 && Math.floor(time * 3) % 2 === 0) text('GLARE', x, y - r - 22, 8, '#ffb0a0', 'center');
 }
 
 function drawMute() {
@@ -688,6 +702,14 @@ async function boot() {
     },
     { view: church, at: T.levelLength, parallax: 0.6 },
   ];
+  // rowhouses everywhere except around the landmarks and along the river by the bridge
+  const L = T.levelLength;
+  const clear = (at: number, w: number): [number, number] => [at - (w / 2 + 40) / STREET_PARALLAX, at + (w / 2 + 40) / STREET_PARALLAX];
+  rowhouses = buildRowhouses(-3000, L + 3000, [
+    clear(0, pieces[0].view.width),
+    [L * 0.5 - 2600, L * 0.5 + 2600],
+    clear(L, church.width),
+  ], STREET_PARALLAX);
   setState('title');
   // ?skip=<seconds> fast-forwards the simulation before the first frame (testing aid)
   const skip = Number(params.get('skip')) || 0;

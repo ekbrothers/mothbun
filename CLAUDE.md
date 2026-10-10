@@ -74,6 +74,7 @@ src/main.ts      loop, states (title, playing, finale, clear, over), drawing, HU
 src/tuning.ts    every gameplay number
 src/audio.ts     synthesized sound effects
 src/pixel-text.ts crisp pixel-font text for the title
+src/rowhouses.ts code-drawn rowhouses between landmarks
 src/building.ts  facade renderer: projections + per-window lights
 src/player.ts    jump, glide, jump buffer, coyote time, body hitbox
 src/world.ts     obstacle and orb spawning
@@ -89,6 +90,8 @@ Stage 2 done:
 - Linear level: Music Hall at the start, Roebling Bridge halfway, Mother of God at the end. Brakes to a stop, then a finale show with fireworks and a LEVEL CLEAR tally.
 - Projections on the bridge towers (mask from hand-placed tower boxes in `tools/clean_bridge.py`).
 - All gameplay numbers live in `src/tuning.ts`.
+- Code-drawn Over-the-Rhine rowhouses (`src/rowhouses.ts`, seeded so the street is the same every run) fill the street between landmarks, leaving open space around Music Hall, the river by the bridge, and the church.
+- Glare button enlarged (radius 42 art px, generous hit area) with a GLARE label for the first seconds of a run.
 
 Still needed:
 - Real sprites for enemies and obstacles, moth sprite sheet, title-pose art, optionally a hurt frame.
