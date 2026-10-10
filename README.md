@@ -1,6 +1,6 @@
 # Mothbun
 
-A pixel art auto-runner starring a weathered concrete rabbit lawn statue dressed up as Mothman. Level 1 is set during BLINK, the Cincinnati and Covington light festival, with animated light projections playing across Music Hall and Mother of God Church.
+A pixel art auto-runner starring a weathered concrete rabbit lawn statue dressed up as Mothman. Level 1 is set during BLINK, the Cincinnati and Covington light festival, with animated light projections playing across Music Hall and Mother of God Church and the Roebling Bridge lit up over the river between them.
 
 ![Title screen](docs/title.png)
 ![Gameplay](docs/gameplay.png)
@@ -28,4 +28,6 @@ Asset tools need Python with Pillow, NumPy, and SciPy:
 python tools/clean_buildings.py
 python tools/build_window_lights.py
 python tools/clean_logo.py
+python tools/clean_bridge.py
+python tools/recolor_wings.py
 ```

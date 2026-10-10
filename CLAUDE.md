@@ -63,7 +63,9 @@ Requires Python with Pillow, NumPy, and SciPy.
 Done:
 - Character sprite sheet, cleaned and aligned.
 - Buildings cleaned, scaled, and night-graded. `tools/build_window_lights.py` splits Music Hall and Mother of God into a lights-off facade, a lit-windows overlay, and window rects so the game switches windows on and off individually.
-- Title logo (`raw/logo.png` cleaned by `tools/clean_logo.py` into `assets/ui/logo.png`, wings and ears recolored to match the rabbit).
+- Wings tinted indigo by `tools/recolor_wings.py` (reads the original gray sheet from `raw/character-gray/`).
+- Roebling Bridge background layer (`tools/clean_bridge.py`), drawn at 0.35 parallax over a code-drawn river between Music Hall and Mother of God.
+- Title logo (`raw/logo.png` cleaned by `tools/clean_logo.py` into `assets/ui/logo.png`, wings tinted the same indigo, ears recolored to concrete).
 - Stage 1 game (Vite + TypeScript, plain canvas, no engine): title screen, auto-scroll, jump, hold to glide, code-drawn projections, window lights, placeholder obstacles (goose, hunter with flashlight, moth swarm), light orbs, 3 lives, score and best score.
 
 Code:
@@ -78,7 +80,6 @@ src/assets.ts    asset loading
 `assets/` is Vite's public dir and is served from the site root. Debug URL params: `?demo` plays itself, `?skip=<s>` fast-forwards the sim, `?t=<s>` offsets the projection clock.
 
 Still needed:
-- Roebling Bridge background layer (angled view generated; save as `raw/roebling.png`), river layer.
 - Real sprites for enemies and obstacles, moth sprite sheet, title-pose art, optionally a hurt frame.
 - Red-eye glare attack, ending show at Mother of God, sound.
 
