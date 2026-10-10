@@ -1,11 +1,13 @@
-# Mothbun
+# Mothbun Goes to BLINK
 
 A pixel art auto-runner starring a weathered concrete rabbit lawn statue dressed up as Mothman. Level 1 is set during BLINK, the Cincinnati and Covington light festival, with animated light projections playing across Music Hall and Mother of God Church and the Roebling Bridge lit up over the river between them.
 
 ![Title screen](docs/title.png)
 ![Gameplay](docs/gameplay.png)
 
-**Play:** tap (or press space) to jump, hold to glide. Best on a phone held sideways.
+![Finale at Mother of God](docs/finale.png)
+
+**Play:** tap (or press space) to jump, hold to glide, and hit the eye button (or X) to fire a red-eye glare that stuns cryptid hunters. Reach Mother of God Church for the closing light show. Best on a phone held sideways.
 
 ## How it's built
 

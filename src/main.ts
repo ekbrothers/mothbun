@@ -1,50 +1,52 @@
-import { loadAssets, type Assets, type BuildingName } from './assets';
-import { BuildingView } from './building';
-import { Input } from './input';
+import { loadAssets, type Assets } from './assets';
+import { Sound } from './audio';
+import { BuildingView, makeCanvas } from './building';
+import { Input, type Zone } from './input';
+import { pixelText, tint } from './pixel-text';
 import { Player } from './player';
+import { TUNING as T } from './tuning';
 import { World, type Obstacle } from './world';
 
 // Internal resolution: 560 art pixels tall, width follows the screen's aspect ratio.
 const VH = 560;
 const STREET = 56; // height of sidewalk + road below the ground line
 const FONT = '"Press Start 2P", monospace';
-const START_SPEED = 230;
-const MAX_SPEED = 430;
-const LIVES = 3;
-
-// Level 1 set pieces, repeating. Buildings sit behind the street and scroll slower.
-const BUILDING_PARALLAX = 0.6;
-const LOOP = 4400;
-const PIECES: { name: BuildingName; x: number }[] = [
-  { name: 'music-hall', x: 300 },
-  { name: 'mother-of-god', x: 3000 },
-];
-
-// The Roebling Bridge sits farther back, over the river, in the stretch between
-// Music Hall and Mother of God. Its loop matches the buildings' so they stay in step.
-const BRIDGE_PARALLAX = 0.35;
-const BRIDGE_LOOP = (LOOP / BUILDING_PARALLAX) * BRIDGE_PARALLAX;
-const BRIDGE_X = 1120;
 const RIVER = 34; // river height above the ground line
 
-type State = 'loading' | 'title' | 'playing' | 'over';
+type State = 'loading' | 'title' | 'playing' | 'finale' | 'clear' | 'over';
 
+// Level 1 runs from Music Hall in Over-the-Rhine, past the Roebling Bridge, to Mother
+// of God in Covington. Each set piece is centered on screen when the camera reaches
+// `at`, and scrolls at its own parallax (farther back is slower).
+interface Piece {
+  view: BuildingView;
+  at: number;
+  parallax: number;
+  bridge?: boolean;
+}
+
+const params = new URLSearchParams(location.search);
+const demo = params.has('demo'); // plays itself
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
-const input = new Input(canvas);
+const input = new Input(canvas, zoneAt);
+const sound = new Sound();
 const player = new Player();
 const world = new World();
+input.onGesture = () => sound.unlock();
 
 let assets: Assets;
-let views: Record<BuildingName, BuildingView>;
+let pieces: Piece[] = [];
+let church: BuildingView;
 let state: State = 'loading';
 let W = 0, H = VH, ground = VH - STREET;
-// ?t=<seconds> starts the clock later, handy for checking a projection.
-let time = Number(new URLSearchParams(location.search).get('t')) || 0, camX = 0, speed = START_SPEED, runTime = 0;
-let lives = LIVES, orbCount = 0, distance = 0, best = readBest(), shake = 0, overT = 0;
+let time = Number(params.get('t')) || 0; // ?t=<seconds> offsets the projection clock
+let camX = 0, speed = T.startSpeed, brakeFrom = 0;
+let lives = T.lives, orbCount = 0, stuns = 0, distance = 0, bonus = 0;
+let best = readBest(), shake = 0, stateT = 0, nextBurst = 0;
 
-// ?demo plays itself: starts a run and jumps on its own.
-const demo = new URLSearchParams(location.search).has('demo');
+interface Spark { x: number; y: number; vx: number; vy: number; life: number; hue: number }
+let sparks: Spark[] = [];
 
 const stars = Array.from({ length: 160 }, () => ({ x: Math.random(), y: Math.random() * 0.75, b: Math.random() }));
 const skyline = buildSkyline(2400);
@@ -59,31 +61,47 @@ function resize() {
 }
 
 const portrait = () => W < VH * 1.1;
-const score = () => Math.floor(distance / 10) + orbCount * 25;
+const score = () => Math.floor(distance / 10) + orbCount * T.orbPoints + stuns * T.stunPoints + bonus;
 const playerX = () => Math.round(Math.min(W * 0.25, 260));
 
-function startRun() {
-  state = 'playing';
-  player.reset();
-  speed = START_SPEED;
-  runTime = 0;
-  lives = LIVES;
-  orbCount = 0;
-  distance = 0;
-  world.reset(camX);
+// on-screen buttons, in art pixels
+const glareBtn = () => ({ x: 56, y: H - 64, r: 30 });
+const muteBtn = () => ({ x: W - 46, y: 10, w: 34, h: 30 });
+
+function zoneAt(x: number, y: number): Zone {
+  const m = muteBtn();
+  if (x >= m.x && x <= m.x + m.w && y >= m.y && y <= m.y + m.h) return 'mute';
+  const g = glareBtn();
+  if (state === 'playing' && Math.hypot(x - g.x, y - g.y) <= g.r + 10) return 'glare';
+  return 'jump';
+}
+
+function setState(s: State) {
+  state = s;
+  stateT = 0;
   input.consume();
 }
 
-function endRun() {
-  state = 'over';
-  overT = 0;
-  if (score() > best) {
-    best = score();
-    try {
-      localStorage.setItem('mothbun-best', String(best));
-    } catch {
-      /* storage blocked, keep best for this session only */
-    }
+function startRun() {
+  setState('playing');
+  player.reset();
+  camX = 0;
+  speed = T.startSpeed;
+  brakeFrom = 0;
+  lives = T.lives;
+  orbCount = stuns = distance = bonus = 0;
+  sparks = [];
+  church.finale = false;
+  world.reset(camX);
+}
+
+function saveBest() {
+  if (score() <= best) return;
+  best = score();
+  try {
+    localStorage.setItem('mothbun-best', String(best));
+  } catch {
+    /* storage blocked, keep best for this session only */
   }
 }
 
@@ -95,59 +113,143 @@ function readBest(): number {
   }
 }
 
+// ---------- update ----------
+
 function update(dt: number) {
   time += dt;
-  for (const v of Object.values(views)) v.update(dt, time);
+  stateT += dt;
+  for (const p of pieces) p.view.update(dt, time);
   shake = Math.max(0, shake - dt * 3);
+  updateSparks(dt);
+  if (input.takeMute()) sound.toggleMute();
 
-  if (state === 'title') {
-    camX += 18 * dt;
-    if ((demo || input.pressedWithin(200)) && !portrait()) startRun();
-    return;
+  const tapped = demo || input.pressedWithin(200);
+  switch (state) {
+    case 'title':
+      if (tapped && !portrait()) startRun();
+      return;
+    case 'over':
+    case 'clear':
+      if (stateT > 1 && tapped) startRun();
+      return;
+    case 'finale':
+      updateFinale(dt, tapped);
+      return;
+    case 'playing':
+      if (!portrait()) updateRun(dt);
+      return;
   }
+}
 
-  if (state === 'over') {
-    overT += dt;
-    if (overT > 0.8 && (demo || input.pressedWithin(200))) startRun();
-    return;
+function updateRun(dt: number) {
+  const remaining = T.levelLength - distance;
+  const progress = Math.min(1, distance / T.levelLength);
+  speed = T.startSpeed + (T.maxSpeed - T.startSpeed) * progress;
+  if (remaining < T.brakeDistance) {
+    if (!brakeFrom) brakeFrom = speed;
+    speed = Math.max(30, brakeFrom * Math.sqrt(Math.max(0, remaining) / T.brakeDistance));
   }
+  const step = Math.min(speed * dt, Math.max(0, remaining));
+  camX += step;
+  distance += step;
 
-  if (portrait()) return; // wait for landscape
-
-  runTime += dt;
-  const difficulty = Math.min(1, runTime / 90);
-  speed = START_SPEED + (MAX_SPEED - START_SPEED) * difficulty;
-  camX += speed * dt;
-  distance += speed * dt;
   if (demo) autopilot();
-  player.update(dt, input, speed);
-  world.update(camX, W, speed, difficulty);
+  if (input.takeGlare() && player.tryGlare()) sound.glare();
+  if (player.update(dt, input, speed)) sound.jump();
+  world.update(dt, camX, W, speed, progress, T.levelLength - T.brakeDistance - 500 + playerX());
 
-  // collisions in world space
   const px = camX + playerX();
+
+  // glare beam stuns hunters and scatters swarms
+  if (player.glareT > 0) {
+    const x0 = px + Player.EYE.x, x1 = x0 + T.glareRange;
+    const ey = player.y + Player.EYE.y;
+    for (const o of world.obstacles) {
+      if (o.kind === 'goose' || o.hit || o.stunned >= 0) continue;
+      if (o.x < x1 && o.x + o.w > x0 && o.y < ey + T.glareHeight / 2 && o.y + o.h > ey - T.glareHeight / 2) {
+        o.stunned = 0;
+        stuns++;
+        sound.stun();
+      }
+    }
+  }
+
   const b = Player.BODY;
   const box = { x0: px + b.left, x1: px + b.right, y0: player.y + b.bottom, y1: player.y + b.top };
   for (const o of world.obstacles) {
-    if (o.hit || player.invuln > 0) continue;
+    if (o.hit || o.stunned >= 0 || player.invuln > 0) continue;
     if (box.x1 > o.x && box.x0 < o.x + o.w && box.y1 > o.y && box.y0 < o.y + o.h) {
       o.hit = true;
       lives--;
       player.invuln = 1.4;
       shake = 1;
-      if (lives <= 0) return endRun();
+      sound.hit();
+      if (lives <= 0) {
+        saveBest();
+        sound.over();
+        return setState('over');
+      }
     }
   }
   for (const orb of world.orbs) {
     if (orb.x > box.x0 - 10 && orb.x < box.x1 + 10 && orb.y > box.y0 - 10 && orb.y < box.y1 + 10) {
       orb.taken = true;
       orbCount++;
+      sound.orb();
     }
   }
+
+  if (remaining <= 0 && player.grounded) {
+    setState('finale');
+    church.finale = true;
+    nextBurst = 0.6;
+  }
+}
+
+function updateFinale(dt: number, tapped: boolean) {
+  player.update(dt, input, 0);
+  nextBurst -= dt;
+  if (nextBurst <= 0 && stateT < 6.5) {
+    burst();
+    nextBurst = 0.35 + Math.random() * 0.4;
+  }
+  if (stateT > 8 || (stateT > 2 && tapped)) {
+    church.finale = false;
+    bonus = lives * T.lifeBonus;
+    saveBest();
+    sound.clear();
+    setState('clear');
+  }
+}
+
+function burst() {
+  const cx = W / 2 + (Math.random() - 0.5) * Math.min(W * 0.6, 520);
+  const cy = 70 + Math.random() * 130;
+  const hue = Math.random() * 360;
+  for (let i = 0; i < 30; i++) {
+    const a = (i / 30) * Math.PI * 2, v = 70 + Math.random() * 90;
+    sparks.push({ x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1.1 + Math.random() * 0.4, hue: hue + Math.random() * 40 });
+  }
+  sound.pop();
+}
+
+function updateSparks(dt: number) {
+  for (const s of sparks) {
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.vy += 70 * dt;
+    s.life -= dt;
+  }
+  sparks = sparks.filter((s) => s.life > 0);
 }
 
 function autopilot() {
   const px = camX + playerX();
-  const next = world.obstacles.find((o) => !o.hit && o.kind !== 'swarm' && o.x + o.w > px - 20);
+  const ahead = world.obstacles.filter((o) => !o.hit && o.stunned < 0 && o.x + o.w > px - 20);
+  const hunter = ahead.find((o) => o.kind === 'hunter' && o.x - px < 260);
+  if (hunter && player.grounded) input.queueGlare();
+  // jump geese, and jump hunters when the glare is still cooling down
+  const next = ahead.find((o) => o.kind === 'goose' || (o.kind === 'hunter' && player.glareCd > 0 && player.glareT <= 0));
   const lead = next ? next.x - px : Infinity;
   if (player.grounded) input.set(lead > 0 && lead < speed * 0.3);
   else input.set(player.vy > 0 || lead < 40);
@@ -160,20 +262,23 @@ function draw() {
   if (shake > 0) ctx.translate(Math.round((Math.random() - 0.5) * 8 * shake), Math.round((Math.random() - 0.5) * 6 * shake));
   drawSky();
   drawSkyline();
-  drawBridge();
-  drawBuildings();
+  for (const p of pieces) drawPiece(p);
   drawStreet();
-  if (state === 'playing' || state === 'over') {
+  if (state !== 'title') {
     drawOrbs();
     for (const o of world.obstacles) drawObstacle(o);
   }
   drawPlayer();
+  drawBeam();
+  drawSparks();
   ctx.restore();
 
   if (state === 'title') drawTitle();
-  if (state === 'playing') drawHud();
+  if (state === 'playing' || state === 'finale') drawHud();
   if (state === 'over') drawGameOver();
-  if (portrait() && state !== 'over') drawRotateHint();
+  if (state === 'clear') drawClear();
+  drawMute();
+  if (portrait() && (state === 'title' || state === 'playing')) drawRotateHint();
 }
 
 function drawSky() {
@@ -213,7 +318,7 @@ function buildSkyline(width: number): { width: number; blocks: SkyBlock[] } {
 }
 
 function drawSkyline() {
-  const off = (camX * 0.25) % skyline.width;
+  const off = (((camX * 0.25) % skyline.width) + skyline.width) % skyline.width;
   for (const rep of [0, skyline.width, skyline.width * 2]) {
     for (const b of skyline.blocks) {
       const x = Math.round(b.x + rep - off);
@@ -226,42 +331,35 @@ function drawSkyline() {
   }
 }
 
-function drawBridge() {
-  const { bridge } = assets;
-  const base = ((BRIDGE_X - camX * BRIDGE_PARALLAX) % BRIDGE_LOOP + BRIDGE_LOOP) % BRIDGE_LOOP;
-  for (const x0 of [base - BRIDGE_LOOP, base]) {
-    const x = Math.round(x0);
-    const rx = x - 140, rw = bridge.width + 220;
-    if (rx > W || rx + rw < 0) continue;
-    // river, fading out at both ends
-    const g = ctx.createLinearGradient(rx, 0, rx + rw, 0);
-    g.addColorStop(0, 'rgba(16, 20, 52, 0)');
-    g.addColorStop(0.15, 'rgba(16, 20, 52, 1)');
-    g.addColorStop(0.85, 'rgba(16, 20, 52, 1)');
-    g.addColorStop(1, 'rgba(16, 20, 52, 0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(rx, ground - RIVER, rw, RIVER);
-    ctx.drawImage(bridge, x, ground - RIVER + 10 - bridge.height);
-    // light from the cables shimmering on the water
-    for (let i = 0; i < 26; i++) {
-      const sx = x + 20 + ((i * 97) % (bridge.width - 60));
-      const sy = ground - RIVER + 12 + ((i * 7) % (RIVER - 16));
-      const on = Math.sin(time * 3 + i * 1.7) > 0.2;
-      ctx.fillStyle = on ? 'rgba(255, 190, 90, 0.55)' : 'rgba(120, 150, 255, 0.35)';
-      ctx.fillRect(sx + Math.round(Math.sin(time * 2 + i) * 2), sy, 6 + (i % 3) * 2, 1);
-    }
+function drawPiece(p: Piece) {
+  const v = p.view;
+  const x = Math.round(W / 2 - v.width / 2 + (p.at - camX) * p.parallax);
+  if (p.bridge) {
+    const rx = x - 140, rw = v.width + 220;
+    if (rx > W || rx + rw < 0) return;
+    drawRiver(x, rx, rw, v.width);
+    ctx.drawImage(v.render(time), x, ground - RIVER + 10 - v.height);
+    return;
   }
+  if (x > W || x + v.width < 0) return;
+  ctx.drawImage(v.render(time), x, ground - v.height);
 }
 
-function drawBuildings() {
-  const scroll = camX * BUILDING_PARALLAX;
-  for (const p of PIECES) {
-    const v = views[p.name];
-    const base = ((p.x - scroll) % LOOP + LOOP) % LOOP;
-    for (const x of [base - LOOP, base]) {
-      if (x > W || x + v.width < 0) continue;
-      ctx.drawImage(v.render(time), Math.round(x), ground - v.height);
-    }
+function drawRiver(x: number, rx: number, rw: number, bw: number) {
+  const g = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+  g.addColorStop(0, 'rgba(16, 20, 52, 0)');
+  g.addColorStop(0.15, 'rgba(16, 20, 52, 1)');
+  g.addColorStop(0.85, 'rgba(16, 20, 52, 1)');
+  g.addColorStop(1, 'rgba(16, 20, 52, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(rx, ground - RIVER, rw, RIVER);
+  // light from the cables shimmering on the water
+  for (let i = 0; i < 26; i++) {
+    const sx = x + 20 + ((i * 97) % (bw - 60));
+    const sy = ground - RIVER + 12 + ((i * 7) % (RIVER - 16));
+    const on = Math.sin(time * 3 + i * 1.7) > 0.2;
+    ctx.fillStyle = on ? 'rgba(255, 190, 90, 0.55)' : 'rgba(120, 150, 255, 0.35)';
+    ctx.fillRect(sx + Math.round(Math.sin(time * 2 + i) * 2), sy, 6 + (i % 3) * 2, 1);
   }
 }
 
@@ -275,7 +373,7 @@ function drawStreet() {
   for (let i = -1; i < W / seam + 2; i++) ctx.fillRect(Math.round(i * seam - (camX % seam)), ground, 2, 8);
   ctx.fillStyle = '#5c5468';
   const dash = 96;
-  for (let i = -1; i < W / dash + 2; i++) ctx.fillRect(Math.round(i * dash - ((camX * 1) % dash)), ground + 30, 40, 4);
+  for (let i = -1; i < W / dash + 2; i++) ctx.fillRect(Math.round(i * dash - (camX % dash)), ground + 30, 40, 4);
 }
 
 function drawPlayer() {
@@ -289,18 +387,49 @@ function drawPlayer() {
   ctx.drawImage(sheet, col * fw, row * fh, fw, fh, x, y, fw, fh);
 }
 
+function drawBeam() {
+  if (player.glareT <= 0) return;
+  const a = player.glareT / T.glareDuration;
+  const x = playerX() + Player.EYE.x;
+  const y = Math.round(ground - player.y - Player.EYE.y);
+  const len = Math.round(T.glareRange * Math.min(1, (1 - a) * 4 + 0.2));
+  ctx.globalAlpha = 0.25 * a;
+  ctx.fillStyle = '#ff2a2a';
+  ctx.fillRect(x, y - T.glareHeight / 2, len, T.glareHeight);
+  ctx.globalAlpha = 0.9 * a * (Math.random() < 0.15 ? 0.5 : 1);
+  ctx.fillRect(x, y - 3, len, 6);
+  ctx.fillStyle = '#ffd0c0';
+  ctx.fillRect(x, y - 1, len, 2);
+  ctx.fillRect(x - 4, y - 4, 8, 8);
+  ctx.globalAlpha = 1;
+}
+
 function drawObstacle(o: Obstacle) {
   const x = Math.round(o.x - camX);
-  if (x > W || x + o.w < 0) return;
+  if (x > W + 40 || x + o.w < -40) return;
   const y = Math.round(ground - o.y - o.h);
   ctx.globalAlpha = o.hit ? 0.35 : 1;
   if (o.kind === 'swarm') {
-    // a jittering cloud of moth dots
+    // a jittering cloud of moth dots that scatters when glared
+    const s = Math.max(0, o.stunned);
+    ctx.globalAlpha = o.hit ? 0.35 : o.stunned >= 0 ? Math.max(0, 1 - s * 1.5) : 1;
     ctx.fillStyle = '#d9cfae';
     for (let i = 0; i < 26; i++) {
       const dx = (Math.sin(i * 12.9898 + time * (3 + (i % 4))) * 0.5 + 0.5) * o.w;
       const dy = (Math.cos(i * 78.233 + time * (4 + (i % 3))) * 0.5 + 0.5) * o.h;
-      ctx.fillRect(Math.round(x + dx), Math.round(y + dy), 3, 2);
+      const fx = (dx - o.w / 2) * s * 4, fy = (dy - o.h / 2) * s * 4;
+      ctx.fillRect(Math.round(x + dx + fx), Math.round(y + dy + fy), 3, 2);
+    }
+  } else if (o.kind === 'hunter' && o.stunned >= 0) {
+    // stunned: knocked flat, flashlight dropped, stars circling
+    ctx.fillStyle = '#0b0914';
+    ctx.fillRect(x - 21, ground - o.w - 1, o.h + 2, o.w + 2);
+    ctx.fillStyle = '#4a5233';
+    ctx.fillRect(x - 20, ground - o.w, o.h, o.w);
+    ctx.fillStyle = '#fff4b0';
+    for (let i = 0; i < 3; i++) {
+      const a = time * 5 + (i * Math.PI * 2) / 3;
+      ctx.fillRect(Math.round(x + 12 + Math.cos(a) * 16), Math.round(ground - o.w - 12 + Math.sin(a) * 5), 4, 4);
     }
   } else {
     ctx.fillStyle = '#0b0914';
@@ -340,6 +469,15 @@ function drawOrbs() {
   }
 }
 
+function drawSparks() {
+  for (const s of sparks) {
+    ctx.globalAlpha = Math.min(1, s.life * 1.5);
+    ctx.fillStyle = `hsl(${s.hue % 360} 95% 62%)`;
+    ctx.fillRect(Math.round(s.x) - 2, Math.round(s.y) - 2, 4, 4);
+  }
+  ctx.globalAlpha = 1;
+}
+
 function text(str: string, x: number, y: number, size = 16, color = '#f3eedc', align: CanvasTextAlign = 'left') {
   ctx.font = `${size}px ${FONT}`;
   ctx.textAlign = align;
@@ -350,21 +488,51 @@ function text(str: string, x: number, y: number, size = 16, color = '#f3eedc', a
   ctx.fillText(str, x, y);
 }
 
+// "GOES TO BLINK" under the logo, in the pixel font at the logo's pixel size.
+// Each BLINK letter has its own color cycle and blinks out now and then.
+let subtitle: { goesTo: HTMLCanvasElement; letters: HTMLCanvasElement[]; tinted: HTMLCanvasElement[] };
+
+function buildSubtitle() {
+  const letters = [...'BLINK'].map((ch) => pixelText(ch, 16, FONT));
+  subtitle = {
+    goesTo: tint(pixelText('GOES TO', 8, FONT), '#e8e2d0'),
+    letters,
+    tinted: letters.map((l) => makeCanvas(l.width, l.height)[0]),
+  };
+}
+
 function drawTitle() {
   const { logo } = assets;
-  const s = Math.max(1, Math.floor(Math.min((W * 0.85) / logo.width, 170 / logo.height)));
+  const s = Math.max(1, Math.floor(Math.min((W * 0.92) / logo.width, 220 / logo.height)));
   const lw = logo.width * s, lh = logo.height * s;
-  const lx = Math.round((W - lw) / 2), ly = Math.round(H * 0.1 + Math.sin(time * 1.5) * 3);
+  const bob = Math.round(Math.sin(time * 1.5) * 3);
+  const lx = Math.round((W - lw) / 2), ly = Math.round(H * 0.04) + bob;
   ctx.drawImage(logo, lx, ly, lw, lh);
-  if (Math.floor(time * 1.6) % 2 === 0 && !portrait()) text('TAP TO START', W / 2, ly + lh + 36, 16, '#f3eedc', 'center');
-  text('TAP: JUMP   HOLD: GLIDE', W / 2, H - 30, 8, '#b9b0d6', 'center');
-  if (best > 0) text(`BEST ${best}`, W - 16, 16, 8, '#b9b0d6', 'right');
+
+  // subtitle in native pixels: GOES TO (8 px tall) beside BLINK (16 px tall), bottoms aligned
+  const { goesTo, letters, tinted } = subtitle;
+  const gap = 6, letterW = 16;
+  const nativeW = goesTo.width + gap + letterW * letters.length + 2;
+  const sx = Math.round(W / 2 - (nativeW * s) / 2);
+  const sy = ly + lh - s * 2;
+  ctx.drawImage(goesTo, sx, sy + 8 * s, goesTo.width * s, goesTo.height * s);
+  letters.forEach((l, i) => {
+    const off = (time * 1.3 + i * 0.41) % 4;
+    if (off < 0.09) return; // a quick blink
+    tint(l, `hsl(${(time * 70 + i * 55) % 360} 95% 62%)`, tinted[i]);
+    ctx.drawImage(tinted[i], sx + (goesTo.width + gap + i * letterW) * s, sy, l.width * s, l.height * s);
+  });
+
+  const below = sy + 18 * s + 18;
+  if (Math.floor(time * 1.6) % 2 === 0 && !portrait()) text('TAP TO START', W / 2, below, 16, '#f3eedc', 'center');
+  text('TAP: JUMP   HOLD: GLIDE   EYE BUTTON OR X: GLARE', W / 2, H - 30, 8, '#b9b0d6', 'center');
+  if (best > 0) text(`BEST ${best}`, 16, 16, 8, '#b9b0d6');
 }
 
 function drawHud() {
   text(`SCORE ${String(score()).padStart(6, '0')}`, 16, 16, 16);
-  for (let i = 0; i < LIVES; i++) {
-    const x = W - 24 - i * 26;
+  for (let i = 0; i < T.lives; i++) {
+    const x = W - 76 - i * 26;
     ctx.fillStyle = '#0b0914';
     ctx.fillRect(x - 2, 14, 18, 18);
     ctx.fillStyle = i < lives ? '#ff2a2a' : '#3a2230';
@@ -374,6 +542,71 @@ function drawHud() {
       ctx.fillRect(x + 3, 19, 4, 4);
     }
   }
+
+  // progress from Music Hall to Mother of God
+  const bw = Math.min(260, W * 0.25), bx = Math.round(W / 2 - bw / 2), by = 22;
+  const f = Math.min(1, distance / T.levelLength);
+  ctx.fillStyle = '#0b0914';
+  ctx.fillRect(bx - 2, by - 2, bw + 4, 8);
+  ctx.fillStyle = '#3a3358';
+  ctx.fillRect(bx, by, bw, 4);
+  ctx.fillStyle = '#ff2a2a';
+  ctx.fillRect(bx, by, Math.round(bw * f), 4);
+  ctx.fillStyle = '#f3eedc';
+  ctx.fillRect(bx + bw - 3, by - 6, 4, 16);
+
+  if (state === 'playing') drawGlareButton();
+}
+
+function drawGlareButton() {
+  const { x, y, r } = glareBtn();
+  const ready = player.glareCd <= 0;
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = '#0b0914';
+  ctx.beginPath();
+  ctx.arc(x, y, r + 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = ready ? '#3a1020' : '#1c1426';
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  if (!ready) {
+    // cooldown sweep
+    ctx.fillStyle = '#3a1020';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - player.glareCd / T.glareCooldown));
+    ctx.fill();
+  }
+  // a pixel eye
+  ctx.globalAlpha = ready ? 1 : 0.5;
+  ctx.fillStyle = '#ff2a2a';
+  ctx.fillRect(x - 12, y - 4, 24, 8);
+  ctx.fillRect(x - 8, y - 8, 16, 16);
+  ctx.fillStyle = '#ffd0c0';
+  ctx.fillRect(x - 3, y - 3, 6, 6);
+  ctx.globalAlpha = 1;
+}
+
+function drawMute() {
+  if (state === 'loading') return;
+  const { x, y, w, h } = muteBtn();
+  ctx.fillStyle = 'rgba(11, 9, 20, 0.6)';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#d8d2f0';
+  ctx.fillRect(x + 7, y + 11, 5, 8);
+  ctx.fillRect(x + 12, y + 8, 3, 14);
+  ctx.fillRect(x + 15, y + 5, 3, 20);
+  if (sound.muted) {
+    ctx.fillStyle = '#ff4a3a';
+    for (let i = 0; i < 9; i++) {
+      ctx.fillRect(x + 20 + i, y + 10 + i, 2, 2);
+      ctx.fillRect(x + 28 - i, y + 10 + i, 2, 2);
+    }
+  } else {
+    ctx.fillRect(x + 21, y + 11, 2, 8);
+    ctx.fillRect(x + 25, y + 8, 2, 14);
+  }
 }
 
 function drawGameOver() {
@@ -382,7 +615,27 @@ function drawGameOver() {
   text('GAME OVER', W / 2, H * 0.28, 32, '#ff4a3a', 'center');
   text(`SCORE ${score()}`, W / 2, H * 0.28 + 64, 16, '#f3eedc', 'center');
   text(`BEST ${best}`, W / 2, H * 0.28 + 92, 16, '#b9b0d6', 'center');
-  if (overT > 0.8 && Math.floor(time * 1.6) % 2 === 0) text('TAP TO TRY AGAIN', W / 2, H * 0.28 + 150, 16, '#f3eedc', 'center');
+  if (stateT > 1 && Math.floor(time * 1.6) % 2 === 0) text('TAP TO TRY AGAIN', W / 2, H * 0.28 + 150, 16, '#f3eedc', 'center');
+}
+
+function drawClear() {
+  ctx.fillStyle = 'rgba(8, 6, 20, 0.55)';
+  ctx.fillRect(0, 0, W, H);
+  const top = H * 0.16;
+  text('LEVEL CLEAR', W / 2, top, 32, `hsl(${(time * 70) % 360} 95% 65%)`, 'center');
+  const rows: [string, number][] = [
+    ['DISTANCE', Math.floor(distance / 10)],
+    [`ORBS x${orbCount}`, orbCount * T.orbPoints],
+    [`STUNS x${stuns}`, stuns * T.stunPoints],
+    [`LIVES x${lives}`, bonus],
+  ];
+  rows.forEach(([label, pts], i) => {
+    text(label, W / 2 - 170, top + 70 + i * 28, 16, '#d8d2f0');
+    text(String(pts), W / 2 + 170, top + 70 + i * 28, 16, '#f3eedc', 'right');
+  });
+  text(`SCORE ${score()}`, W / 2, top + 196, 16, '#ffe08a', 'center');
+  text(`BEST ${best}`, W / 2, top + 224, 16, '#b9b0d6', 'center');
+  if (stateT > 1 && Math.floor(time * 1.6) % 2 === 0) text('TAP TO PLAY AGAIN', W / 2, top + 270, 16, '#f3eedc', 'center');
 }
 
 function drawRotateHint() {
@@ -417,22 +670,27 @@ async function boot() {
   addEventListener('resize', resize);
   drawLoading('LOADING');
   try {
-    [assets] = await Promise.all([loadAssets(), document.fonts.load(`16px ${FONT}`)]);
+    [assets] = await Promise.all([loadAssets(), document.fonts.load(`16px ${FONT}`), document.fonts.load(`8px ${FONT}`)]);
   } catch (err) {
     console.error(err);
     drawLoading('COULD NOT LOAD THE GAME');
     return;
   }
-  views = {
-    'music-hall': new BuildingView(assets.buildings['music-hall'], 0),
-    'mother-of-god': new BuildingView(assets.buildings['mother-of-god'], 1),
-  };
-  // start the title with Music Hall centered
-  camX = (PIECES[0].x + views['music-hall'].width / 2 - W / 2) / BUILDING_PARALLAX;
-  state = 'title';
-  input.consume();
+  buildSubtitle();
+  church = new BuildingView(assets.buildings['mother-of-god'], 1);
+  pieces = [
+    { view: new BuildingView(assets.buildings['music-hall'], 0), at: 0, parallax: 0.6 },
+    {
+      view: new BuildingView({ dark: assets.bridge, windows: [], mask: assets.bridgeTowers }, 2.3, 0.6),
+      at: T.levelLength * 0.5,
+      parallax: 0.35,
+      bridge: true,
+    },
+    { view: church, at: T.levelLength, parallax: 0.6 },
+  ];
+  setState('title');
   // ?skip=<seconds> fast-forwards the simulation before the first frame (testing aid)
-  const skip = Number(new URLSearchParams(location.search).get('skip')) || 0;
+  const skip = Number(params.get('skip')) || 0;
   for (let i = 0; i < skip * 60; i++) update(1 / 60);
   requestAnimationFrame((t) => {
     last = t;

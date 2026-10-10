@@ -22,6 +22,7 @@ export interface Assets {
   meta: SheetMeta;
   logo: HTMLImageElement;
   bridge: HTMLImageElement;
+  bridgeTowers: HTMLImageElement;
   buildings: Record<BuildingName, BuildingArt>;
 }
 
@@ -52,11 +53,12 @@ async function loadBuilding(name: BuildingName): Promise<BuildingArt> {
 }
 
 export async function loadAssets(): Promise<Assets> {
-  const [sheet, meta, logo, bridge, ...buildings] = await Promise.all([
+  const [sheet, meta, logo, bridge, bridgeTowers, ...buildings] = await Promise.all([
     loadImage('character/mothbun_sheet.png'),
     loadJson<SheetMeta>('character/mothbun_sheet.json'),
     loadImage('ui/logo.png'),
     loadImage('buildings/roebling.png'),
+    loadImage('buildings/roebling-towers.png'),
     ...BUILDINGS.map(loadBuilding),
   ]);
   return {
@@ -64,6 +66,7 @@ export async function loadAssets(): Promise<Assets> {
     meta,
     logo,
     bridge,
+    bridgeTowers,
     buildings: Object.fromEntries(buildings.map((b) => [b.name, b])) as Record<BuildingName, BuildingArt>,
   };
 }

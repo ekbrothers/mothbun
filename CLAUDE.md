@@ -1,4 +1,4 @@
-# Mothbun
+# Mothbun Goes to BLINK
 
 A small side-scrolling pixel art game starring a friend's concrete rabbit lawn statue, dressed up as Mothman for a holiday. Level 1 is themed around BLINK, the Cincinnati and Covington light festival where artists project animations onto historic buildings.
 
@@ -70,7 +70,10 @@ Done:
 
 Code:
 ```
-src/main.ts      loop, states (title, playing, over), drawing, HUD
+src/main.ts      loop, states (title, playing, finale, clear, over), drawing, HUD
+src/tuning.ts    every gameplay number
+src/audio.ts     synthesized sound effects
+src/pixel-text.ts crisp pixel-font text for the title
 src/building.ts  facade renderer: projections + per-window lights
 src/player.ts    jump, glide, jump buffer, coyote time, body hitbox
 src/world.ts     obstacle and orb spawning
@@ -79,9 +82,17 @@ src/assets.ts    asset loading
 ```
 `assets/` is Vite's public dir and is served from the site root. Debug URL params: `?demo` plays itself, `?skip=<s>` fast-forwards the sim, `?t=<s>` offsets the projection clock.
 
+Stage 2 done:
+- Title is "Mothbun Goes to BLINK": bigger logo, pixel-font subtitle with BLINK letters cycling color (`src/pixel-text.ts`).
+- Red-eye glare: on-screen eye button (bottom left) or X/F/Shift/Right. Stuns hunters, scatters swarms, geese are immune.
+- Synthesized sound effects (`src/audio.ts`), mute button top right or M.
+- Linear level: Music Hall at the start, Roebling Bridge halfway, Mother of God at the end. Brakes to a stop, then a finale show with fireworks and a LEVEL CLEAR tally.
+- Projections on the bridge towers (mask from hand-placed tower boxes in `tools/clean_bridge.py`).
+- All gameplay numbers live in `src/tuning.ts`.
+
 Still needed:
 - Real sprites for enemies and obstacles, moth sprite sheet, title-pose art, optionally a hurt frame.
-- Red-eye glare attack, ending show at Mother of God, sound.
+- More set pieces for the long middle stretch, and on-device tuning feedback.
 
 ## Working style
 

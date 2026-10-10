@@ -1,8 +1,16 @@
-import type { BuildingArt, Rect } from './assets';
+import type { Rect } from './assets';
 
-// A building facade with BLINK-style projections and windows that switch on and off.
+// A facade with BLINK-style projections and windows that switch on and off. Used for
+// the buildings and for the Roebling Bridge towers (no windows, projection masked to the towers).
 // Layers, bottom to top: lights-off facade, projected light (screen blended and masked
 // to the facade), then each lit window drawn at its own brightness.
+
+export interface FacadeArt {
+  dark: HTMLImageElement;
+  lights?: HTMLImageElement;
+  windows: Rect[];
+  mask?: HTMLImageElement; // where projections land; defaults to the whole facade
+}
 
 interface WindowLight {
   rect: Rect;
@@ -76,8 +84,10 @@ export class BuildingView {
   private lightCtx: CanvasRenderingContext2D;
   private windows: WindowLight[];
   private showOffset: number;
+  // The end-of-level show: full strength, patterns changing quickly, windows dark.
+  finale = false;
 
-  constructor(private art: BuildingArt, seed: number) {
+  constructor(private art: FacadeArt, seed: number, private glow = 0.75) {
     const { width: w, height: h } = art.dark;
     [this.canvas, this.ctx] = makeCanvas(w, h);
     [this.light, this.lightCtx] = makeCanvas(w, h);
@@ -98,6 +108,7 @@ export class BuildingView {
   // Projection strength 0..1 and which pattern is up at time t.
   private show(t: number) {
     const st = t + this.showOffset;
+    if (this.finale) return { strength: 1, pattern: Math.floor(st / 1.4) % PATTERNS.length, time: st * 1.6 };
     const cycle = SHOW_LEN * PATTERNS.length + 4; // a short dark gap between full cycles
     const ct = st % cycle;
     if (ct >= SHOW_LEN * PATTERNS.length) return { strength: 0, pattern: 0, time: st };
@@ -113,7 +124,7 @@ export class BuildingView {
       w.nextToggle -= dt;
       if (w.nextToggle <= 0) {
         // during a show most windows go dark so the projection reads
-        const pOn = strength > 0.5 ? 0.15 : 0.75;
+        const pOn = this.finale ? 0 : strength > 0.5 ? 0.15 : 0.75;
         const on = Math.random() < pOn;
         if (on && w.target === 0) w.flicker = 0.35;
         w.target = on ? 1 : 0;
@@ -138,20 +149,21 @@ export class BuildingView {
       lc.clearRect(0, 0, w, h);
       PATTERNS[show.pattern](lc, w, h, show.time);
       lc.globalCompositeOperation = 'destination-in';
-      lc.drawImage(art.dark, 0, 0);
+      lc.drawImage(art.mask ?? art.dark, 0, 0);
       ctx.globalCompositeOperation = 'screen';
-      ctx.globalAlpha = 0.75 * show.strength;
+      ctx.globalAlpha = this.glow * show.strength;
       ctx.drawImage(this.light, 0, 0);
       ctx.globalCompositeOperation = 'source-over';
     }
 
-    for (const win of this.windows) {
+    const lights = art.lights;
+    if (lights) for (const win of this.windows) {
       let a = win.level;
       if (win.flicker > 0) a *= Math.random() < 0.5 ? 0.2 : 1;
       if (a < 0.02) continue;
       const [x, y, rw, rh] = win.rect;
       ctx.globalAlpha = a;
-      ctx.drawImage(art.lights, x, y, rw, rh, x, y, rw, rh);
+      ctx.drawImage(lights, x, y, rw, rh, x, y, rw, rh);
     }
     ctx.globalAlpha = 1;
     return this.canvas;

@@ -10,6 +10,7 @@ export interface Obstacle {
   w: number;
   h: number;
   hit: boolean;
+  stunned: number; // seconds since the glare hit it, or -1
 }
 
 export interface Orb {
@@ -21,8 +22,8 @@ export interface Orb {
 
 const SIZES: Record<ObstacleKind, { w: number; h: number; y: number }> = {
   goose: { w: 34, h: 30, y: 0 }, // jump over
-  hunter: { w: 26, h: 64, y: 0 }, // jump over, needs a full jump
-  swarm: { w: 70, h: 40, y: 96 }, // stay low and run under, or glide over
+  hunter: { w: 26, h: 64, y: 0 }, // jump over with a full jump, or glare to stun
+  swarm: { w: 70, h: 40, y: 96 }, // stay low and run under, glide over, or glare mid-jump
 };
 
 export class World {
@@ -33,22 +34,24 @@ export class World {
   reset(startX: number) {
     this.obstacles = [];
     this.orbs = [];
-    this.nextSpawn = startX + 700;
+    this.nextSpawn = startX + 900;
   }
 
-  update(camX: number, viewW: number, speed: number, difficulty: number) {
-    while (this.nextSpawn < camX + viewW + 200) this.spawn(this.nextSpawn, speed, difficulty);
+  // Nothing spawns past `endX`, so the end of the level is clear.
+  update(dt: number, camX: number, viewW: number, speed: number, difficulty: number, endX: number) {
+    while (this.nextSpawn < Math.min(camX + viewW + 200, endX)) this.spawn(this.nextSpawn, speed, difficulty);
     const gone = camX - 200;
     this.obstacles = this.obstacles.filter((o) => o.x + o.w > gone);
     this.orbs = this.orbs.filter((o) => o.x > gone && !o.taken);
+    for (const o of this.obstacles) if (o.stunned >= 0) o.stunned += dt;
   }
 
   private spawn(x: number, speed: number, difficulty: number) {
     const roll = Math.random();
     const kind: ObstacleKind =
-      difficulty < 0.15 ? 'goose' : roll < 0.45 ? 'goose' : roll < 0.75 ? 'hunter' : 'swarm';
+      difficulty < 0.12 ? 'goose' : roll < 0.42 ? 'goose' : roll < 0.75 ? 'hunter' : 'swarm';
     const s = SIZES[kind];
-    this.obstacles.push({ kind, x, y: s.y, w: s.w, h: s.h, hit: false });
+    this.obstacles.push({ kind, x, y: s.y, w: s.w, h: s.h, hit: false, stunned: -1 });
 
     // an arc of orbs over ground obstacles, a low line under swarms
     if (Math.random() < 0.7) {
@@ -62,7 +65,7 @@ export class World {
     }
 
     // gaps shrink as the run gets harder, but scale with speed so jumps stay possible
-    const minGap = speed * (1.25 - 0.35 * difficulty);
+    const minGap = speed * (1.3 - 0.35 * difficulty);
     this.nextSpawn = x + minGap + Math.random() * speed * 1.4;
   }
 }

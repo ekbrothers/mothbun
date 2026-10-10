@@ -22,6 +22,12 @@ alpha = al > 0.5
 
 R, G, B = rgb[..., 0], rgb[..., 1], rgb[..., 2]
 lit = (R > 190) & (G > 120) & (R > B + 90)
+# Projection mask: everything inside the two towers except the blue steel passing in front.
+TOWERS = [(36, 97, 97, 203), (330, 0, 444, 224)]  # x0, y0, x1, y1 in art px
+inside = np.zeros((H, W), bool)
+for x0, y0, x1, y1 in TOWERS:
+    inside[y0:y1, x0:x1] = True
+stone = inside & ~(B > R + 5)
 night = rgb * np.array([0.5, 0.5, 0.75]) + np.array([8, 6, 22])
 rgb = np.where(lit[..., None], rgb, night)
 
@@ -31,4 +37,6 @@ keep = np.clip((W - 1 - xx) / FADE, 0, 1) > bayer[np.arange(H)[:, None] % 4, xx 
 alpha &= keep
 
 Image.fromarray(np.dstack([np.clip(rgb, 0, 255), alpha * 255]).astype(np.uint8), 'RGBA').save('assets/buildings/roebling.png')
+mask = np.zeros((H, W, 4), np.uint8); mask[stone & alpha] = 255
+Image.fromarray(mask, 'RGBA').save('assets/buildings/roebling-towers.png')
 print('roebling', W, H)
