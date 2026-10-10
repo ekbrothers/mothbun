@@ -1,7 +1,7 @@
 from PIL import Image; import numpy as np
 from scipy import ndimage as nd
 # Keys out the green, snaps the ChatGPT logo to its ~11.7 px pixel grid, and recolors
-# the blue wings and pink inner ears to match the rabbit's charcoal and concrete.
+# the wings to the rabbit's indigo and the pink inner ears to concrete.
 GRID=11.7
 im=np.array(Image.open('raw/logo.png').convert('RGB')).astype(float)
 r,g,b=im[...,0],im[...,1],im[...,2]
@@ -18,7 +18,8 @@ blue=(B>R+15)&(B>G)
 # inner ears: the red pixels in the box above the T and H
 yy,xx=np.mgrid[0:H,0:W]
 pink=(R>90)&(R>G+40)&(R>B+40)&(yy<H*0.3)&(xx>W*0.42)&(xx<W*0.61)
-rgb=np.where(blue[...,None],lum*np.array([0.78,0.76,0.74]),rgb)
+t=np.clip((lum-15)/100,0,1)
+rgb=np.where(blue[...,None],np.array([14,10,34])+(np.array([78,58,140])-np.array([14,10,34]))*t,rgb)  # same indigo as tools/recolor_wings.py
 rgb=np.where(pink[...,None],lum*np.array([0.95,0.9,0.82]),rgb)
 Image.fromarray(np.dstack([np.clip(rgb,0,255),(al>0.5)*255]).astype(np.uint8),'RGBA').save('assets/ui/logo.png')
 print('logo',W,H)

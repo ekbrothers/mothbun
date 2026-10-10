@@ -14,11 +14,18 @@ const LIVES = 3;
 
 // Level 1 set pieces, repeating. Buildings sit behind the street and scroll slower.
 const BUILDING_PARALLAX = 0.6;
-const LOOP = 3600;
+const LOOP = 4400;
 const PIECES: { name: BuildingName; x: number }[] = [
   { name: 'music-hall', x: 300 },
-  { name: 'mother-of-god', x: 2100 },
+  { name: 'mother-of-god', x: 3000 },
 ];
+
+// The Roebling Bridge sits farther back, over the river, in the stretch between
+// Music Hall and Mother of God. Its loop matches the buildings' so they stay in step.
+const BRIDGE_PARALLAX = 0.35;
+const BRIDGE_LOOP = (LOOP / BUILDING_PARALLAX) * BRIDGE_PARALLAX;
+const BRIDGE_X = 1120;
+const RIVER = 34; // river height above the ground line
 
 type State = 'loading' | 'title' | 'playing' | 'over';
 
@@ -153,6 +160,7 @@ function draw() {
   if (shake > 0) ctx.translate(Math.round((Math.random() - 0.5) * 8 * shake), Math.round((Math.random() - 0.5) * 6 * shake));
   drawSky();
   drawSkyline();
+  drawBridge();
   drawBuildings();
   drawStreet();
   if (state === 'playing' || state === 'over') {
@@ -214,6 +222,33 @@ function drawSkyline() {
       ctx.fillRect(x, ground - b.h, b.w, b.h);
       ctx.fillStyle = '#c9a25e';
       for (const [lx, ly] of b.lit) ctx.fillRect(x + lx, ground - b.h + ly, 2, 3);
+    }
+  }
+}
+
+function drawBridge() {
+  const { bridge } = assets;
+  const base = ((BRIDGE_X - camX * BRIDGE_PARALLAX) % BRIDGE_LOOP + BRIDGE_LOOP) % BRIDGE_LOOP;
+  for (const x0 of [base - BRIDGE_LOOP, base]) {
+    const x = Math.round(x0);
+    const rx = x - 140, rw = bridge.width + 220;
+    if (rx > W || rx + rw < 0) continue;
+    // river, fading out at both ends
+    const g = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+    g.addColorStop(0, 'rgba(16, 20, 52, 0)');
+    g.addColorStop(0.15, 'rgba(16, 20, 52, 1)');
+    g.addColorStop(0.85, 'rgba(16, 20, 52, 1)');
+    g.addColorStop(1, 'rgba(16, 20, 52, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(rx, ground - RIVER, rw, RIVER);
+    ctx.drawImage(bridge, x, ground - RIVER + 10 - bridge.height);
+    // light from the cables shimmering on the water
+    for (let i = 0; i < 26; i++) {
+      const sx = x + 20 + ((i * 97) % (bridge.width - 60));
+      const sy = ground - RIVER + 12 + ((i * 7) % (RIVER - 16));
+      const on = Math.sin(time * 3 + i * 1.7) > 0.2;
+      ctx.fillStyle = on ? 'rgba(255, 190, 90, 0.55)' : 'rgba(120, 150, 255, 0.35)';
+      ctx.fillRect(sx + Math.round(Math.sin(time * 2 + i) * 2), sy, 6 + (i % 3) * 2, 1);
     }
   }
 }
