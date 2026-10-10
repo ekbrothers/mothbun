@@ -38,7 +38,7 @@ Frames are aligned horizontally on the red eye and vertically on the feet. The a
 
 Rabbit standing height is about 86 px. Buildings are scaled relative to that (scale was increased once after feedback that they looked too small):
 
-- house.png: 3.6x rabbit height (459x310). A Victorian house; its role in the level is not yet decided.
+- house.png: 3.6x rabbit height (459x310). A Victorian house. Dropped from the level for now since it has no Cincinnati tie; files kept.
 - music-hall.png: 4.9x (640x421). Cincinnati Music Hall, OTR.
 - mother-of-god.png: 5.7x (401x490). Mother of God Church, Covington.
 
@@ -51,9 +51,9 @@ The level-art-check prototype renders at an internal height of 560 art pixels, s
 
 Requires Python with Pillow, NumPy, and SciPy.
 
-## Proposed game design (not yet confirmed by Evan)
+## Game design
 
-- Auto-runner: world scrolls on its own. Built for one-thumb phone play.
+- Auto-runner (confirmed): world scrolls on its own. Built for one-thumb phone play.
 - Jump (tap), glide (hold, using the spread-wing frame), red-eye glare attack (code-drawn red beam that stuns).
 - Enemies: cryptid hunters with flashlights and cameras (getting photographed costs a life), moths swarming toward projections, geese or raccoons as ground obstacles.
 - Collect glowing light orbs from projections. Level ends at Mother of God Church with a final projection show.
@@ -62,16 +62,25 @@ Requires Python with Pillow, NumPy, and SciPy.
 
 Done:
 - Character sprite sheet, cleaned and aligned.
-- Three buildings, cleaned, scaled, and night-graded.
-- Two HTML prototypes (animation preview, scrolling level art check).
+- Buildings cleaned, scaled, and night-graded. `tools/build_window_lights.py` splits Music Hall and Mother of God into a lights-off facade, a lit-windows overlay, and window rects so the game switches windows on and off individually.
+- Title logo (`raw/logo.png` cleaned by `tools/clean_logo.py` into `assets/ui/logo.png`, wings and ears recolored to match the rabbit).
+- Stage 1 game (Vite + TypeScript, plain canvas, no engine): title screen, auto-scroll, jump, hold to glide, code-drawn projections, window lights, placeholder obstacles (goose, hunter with flashlight, moth swarm), light orbs, 3 lives, score and best score.
 
-Open questions:
-- Auto-runner vs free left/right movement (auto-runner recommended).
-- Whether the Victorian house is the friends' house where the statue lives (possible level start).
+Code:
+```
+src/main.ts      loop, states (title, playing, over), drawing, HUD
+src/building.ts  facade renderer: projections + per-window lights
+src/player.ts    jump, glide, jump buffer, coyote time, body hitbox
+src/world.ts     obstacle and orb spawning
+src/input.ts     one-button input (tap, click, space, up)
+src/assets.ts    asset loading
+```
+`assets/` is Vite's public dir and is served from the site root. Debug URL params: `?demo` plays itself, `?skip=<s>` fast-forwards the sim, `?t=<s>` offsets the projection clock.
 
 Still needed:
-- Game code (Stage 1: auto-scroll, jump, glide, code-driven projections, placeholder enemy blocks).
-- Assets: tileable street strip, distant skyline layer, obstacle set, enemy sprites, optionally a hurt frame.
+- Roebling Bridge background layer (angled view generated; save as `raw/roebling.png`), river layer.
+- Real sprites for enemies and obstacles, moth sprite sheet, title-pose art, optionally a hurt frame.
+- Red-eye glare attack, ending show at Mother of God, sound.
 
 ## Working style
 
