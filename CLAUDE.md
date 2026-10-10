@@ -87,6 +87,7 @@ Stage 2 done:
 - Title is "Mothbun Goes to BLINK": bigger logo, pixel-font subtitle with BLINK letters cycling color (`src/pixel-text.ts`).
 - Red-eye glare: on-screen eye button (bottom left) or X/F/Shift/Right. Stuns hunters, scatters swarms, geese are immune.
 - Synthesized sound effects (`src/audio.ts`), mute button top right or M.
+- Background music `assets/audio/music.mp3` ("Bouncy Runner", royalty-free, re-encoded from 256 to 96 kbps, 5.5 min loop). Starts on the first gesture, follows mute, pauses when the tab is hidden.
 - Linear level with landmarks front-loaded for short plays: Music Hall at the start, Roebling Bridge around 4 to 19 s, Mother of God around 23 s, then rowhouses, and Mother of God again at the end for the finale. New iconic buildings should go into the rowhouse stretch. Brakes to a stop, then a finale show with fireworks and a LEVEL CLEAR tally.
 - Projections on the bridge towers (mask from hand-placed tower boxes in `tools/clean_bridge.py`).
 - All gameplay numbers live in `src/tuning.ts`.

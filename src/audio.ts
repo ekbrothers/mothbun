@@ -1,13 +1,17 @@
-// Sound effects synthesized with Web Audio, so there are no sound files to load.
-// The audio context can only start after a tap or key press, so unlock() is called
-// from the first input event.
+// Sound effects are synthesized with Web Audio. The background music is a streamed,
+// looping mp3 ("Bouncy Runner", a royalty-free Halloween retro track).
+// Browsers only allow audio after a tap or key press, so unlock() is called from the
+// first input event.
 
 const VOLUME = 0.22;
+const MUSIC_VOLUME = 0.35;
 
 export class Sound {
   muted: boolean;
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private music: HTMLAudioElement | null = null;
+  private musicStarted = false;
 
   constructor() {
     let saved = false;
@@ -17,6 +21,11 @@ export class Sound {
       /* storage blocked */
     }
     this.muted = saved;
+    document.addEventListener('visibilitychange', () => {
+      if (!this.music || !this.musicStarted) return;
+      if (document.hidden) this.music.pause();
+      else void this.music.play().catch(() => {});
+    });
   }
 
   unlock() {
@@ -31,11 +40,32 @@ export class Sound {
       }
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
+    this.startMusic();
+  }
+
+  // Starts on the first gesture even when muted (as a muted element), so unmuting
+  // later works without needing another gesture.
+  private startMusic() {
+    if (this.musicStarted) return;
+    if (!this.music) {
+      this.music = new Audio(import.meta.env.BASE_URL + 'audio/music.mp3');
+      this.music.loop = true;
+      this.music.preload = 'auto';
+      this.music.volume = MUSIC_VOLUME;
+    }
+    this.music.muted = this.muted;
+    this.music
+      .play()
+      .then(() => (this.musicStarted = true))
+      .catch(() => {
+        /* blocked or failed; try again on the next gesture */
+      });
   }
 
   toggleMute() {
     this.muted = !this.muted;
     if (this.master) this.master.gain.value = this.muted ? 0 : VOLUME;
+    if (this.music) this.music.muted = this.muted;
     try {
       localStorage.setItem('mothbun-muted', this.muted ? '1' : '0');
     } catch {

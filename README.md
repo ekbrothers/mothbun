@@ -33,3 +33,7 @@ python tools/clean_logo.py
 python tools/clean_bridge.py
 python tools/recolor_wings.py
 ```
+
+## Credits
+
+Background music: "Bouncy Runner", a royalty-free Halloween retro gaming track, re-encoded to 96 kbps.
