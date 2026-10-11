@@ -5,7 +5,9 @@ from scipy import ndimage as nd
 # Lit glass and the cream trim share the same palette colors, so windows are found by
 # shape: solid blocks at least 3 px tall survive, thin trim lines and bands do not.
 DARK=np.array([28,24,52])
-for name in ['music-hall','mother-of-god']:
+import sys
+NAMES=sys.argv[1:] or ['music-hall','mother-of-god','museum-center']
+for name in NAMES:
     im=np.array(Image.open(f'assets/buildings/{name}.png').convert('RGBA')).astype(float)
     R,G,B,A=im[...,0],im[...,1],im[...,2],im[...,3]
     lit=(R>170)&(G>110)&(R>B+70)&(A>0)

@@ -1,7 +1,9 @@
-from PIL import Image; import numpy as np
+from PIL import Image; import numpy as np, sys
 from scipy import ndimage as nd
 CHAR_H=86
-specs={'house':('house',3.6,0.35),'music-hall':('music-hall',4.9,1.0),'mother-of-god':('mother-of-god',5.7,1.0)}
+specs={'house':('house',3.6,0.35),'music-hall':('music-hall',4.9,1.0),'mother-of-god':('mother-of-god',5.7,1.0),'museum-center':('museum-center',3.6,1.0)}
+# optional: python tools/clean_buildings.py museum-center  (only rebuild the named ones)
+if len(sys.argv)>1: specs={k:v for k,v in specs.items() if k in sys.argv[1:]}
 for name,(f,mult,grade) in specs.items():
     im=np.array(Image.open(f'raw/{f}.png').convert('RGB')).astype(float)
     r,g,b=im[...,0],im[...,1],im[...,2]

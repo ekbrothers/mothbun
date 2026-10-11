@@ -41,6 +41,7 @@ Rabbit standing height is about 86 px. Buildings are scaled relative to that (sc
 - house.png: 3.6x rabbit height (459x310). A Victorian house. Dropped from the level for now since it has no Cincinnati tie; files kept.
 - music-hall.png: 4.9x (640x421). Cincinnati Music Hall, OTR.
 - mother-of-god.png: 5.7x (401x490). Mother of God Church, Covington.
+- museum-center.png: 3.6x (1071x310). Cincinnati Museum Center at Union Terminal. Rebuild one building with `python tools/clean_buildings.py museum-center` then `python tools/build_window_lights.py museum-center`.
 
 The level-art-check prototype renders at an internal height of 560 art pixels, scaled to fit the screen height, with the width derived from the screen aspect ratio. Best viewed in landscape on a phone.
 
@@ -88,7 +89,7 @@ Stage 2 done:
 - Red-eye glare: on-screen eye button (bottom left) or X/F/Shift/Right. Stuns hunters, scatters swarms, geese are immune.
 - Synthesized sound effects (`src/audio.ts`), mute button top right or M.
 - Background music `assets/audio/music.mp3` ("Bouncy Runner", royalty-free, re-encoded from 256 to 96 kbps, 5.5 min loop). Starts on the first gesture, follows mute, pauses when the tab is hidden.
-- Linear level with landmarks front-loaded for short plays: Music Hall at the start, Roebling Bridge around 4 to 19 s, Mother of God around 23 s, then rowhouses, and Mother of God again at the end for the finale. New iconic buildings should go into the rowhouse stretch. Brakes to a stop, then a finale show with fireworks and a LEVEL CLEAR tally.
+- Linear level with landmarks front-loaded for short plays: Music Hall at the start, Roebling Bridge around 4 to 19 s, Mother of God around 23 s, the Cincinnati Museum Center (Union Terminal, 3.6x rabbit height, 1071x310) around 27 s, then rowhouses, and Mother of God again at the end for the finale. New iconic buildings should go into the rowhouse stretch. Brakes to a stop, then a finale show with fireworks and a LEVEL CLEAR tally.
 - Projections on the bridge towers (mask from hand-placed tower boxes in `tools/clean_bridge.py`).
 - All gameplay numbers live in `src/tuning.ts`.
 - Code-drawn Over-the-Rhine rowhouses (`src/rowhouses.ts`, seeded so the street is the same every run) fill the street between landmarks, leaving open space around Music Hall, the river by the bridge, and the church.

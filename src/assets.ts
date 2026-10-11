@@ -14,7 +14,7 @@ export interface BuildingArt {
   windows: Rect[];
 }
 
-export const BUILDINGS = ['music-hall', 'mother-of-god'] as const;
+export const BUILDINGS = ['music-hall', 'mother-of-god', 'museum-center'] as const;
 export type BuildingName = (typeof BUILDINGS)[number];
 
 export interface Assets {
