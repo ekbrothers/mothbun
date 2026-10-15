@@ -6,7 +6,7 @@ import { pixelText, tint } from './pixel-text';
 import { buildRowhouses, type Rowhouse } from './rowhouses';
 import { Player } from './player';
 import { TUNING as T } from './tuning';
-import { World, type Obstacle } from './world';
+import { KINDS, World, box as hitbox, type Obstacle } from './world';
 
 // Internal resolution: 560 art pixels tall, width follows the screen's aspect ratio.
 const VH = 560;
@@ -162,20 +162,36 @@ function updateRun(dt: number) {
   camX += step;
   distance += step;
 
+  const px = camX + playerX();
+  const b = Player.BODY;
+  world.update(dt, camX, px, W, speed, progress, T.levelLength - T.brakeDistance - 500 + playerX());
+
+  // the roof he's standing on, or one he's above and could land on
+  let floor = 0;
+  for (const o of world.obstacles) {
+    const h = hitbox(o);
+    if (KINDS[o.kind].platform && !o.hit && px + b.right > h.x0 && px + b.left < h.x1 && player.y >= h.top - 2) floor = Math.max(floor, h.top);
+  }
+
   if (demo) autopilot();
   if (input.takeGlare() && player.tryGlare()) sound.glare();
-  if (player.update(dt, input, speed)) sound.jump();
-  world.update(dt, camX, W, speed, progress, T.levelLength - T.brakeDistance - 500 + playerX());
+  if (player.update(dt, input, speed, floor)) sound.jump();
 
-  const px = camX + playerX();
+  for (const o of world.obstacles) {
+    if (o.kind === 'streetcar' && !o.warned && o.x - camX < W + 80) {
+      o.warned = true;
+      sound.bell();
+    }
+  }
 
-  // glare beam stuns hunters and scatters swarms
+  // glare beam knocks scooter riders off; it does nothing to the big vehicles
   if (player.glareT > 0) {
     const x0 = px + Player.EYE.x, x1 = x0 + T.glareRange;
     const ey = player.y + Player.EYE.y;
     for (const o of world.obstacles) {
-      if (o.kind === 'goose' || o.hit || o.stunned >= 0) continue;
-      if (o.x < x1 && o.x + o.w > x0 && o.y < ey + T.glareHeight / 2 && o.y + o.h > ey - T.glareHeight / 2) {
+      if (o.kind !== 'scooter' || o.hit || o.stunned >= 0) continue;
+      const h = hitbox(o);
+      if (h.x0 < x1 && h.x1 > x0 && ey - T.glareHeight / 2 < h.top) {
         o.stunned = 0;
         stuns++;
         sound.stun();
@@ -183,21 +199,25 @@ function updateRun(dt: number) {
     }
   }
 
-  const b = Player.BODY;
   const box = { x0: px + b.left, x1: px + b.right, y0: player.y + b.bottom, y1: player.y + b.top };
   for (const o of world.obstacles) {
-    if (o.hit || o.stunned >= 0 || player.invuln > 0) continue;
-    if (box.x1 > o.x && box.x0 < o.x + o.w && box.y1 > o.y && box.y0 < o.y + o.h) {
-      o.hit = true;
-      lives--;
-      player.invuln = 1.4;
-      shake = 1;
-      sound.hit();
-      if (lives <= 0) {
-        saveBest();
-        sound.over();
-        return setState('over');
-      }
+    if (o.hit || o.stunned >= 0) continue;
+    const h = hitbox(o);
+    if (!(box.x1 > h.x0 && box.x0 < h.x1 && box.y0 < h.top)) continue;
+    // still blinking from the last hit: let him pass through instead of hitting it twice
+    if (player.invuln > 0) {
+      if (KINDS[o.kind].platform) o.hit = true;
+      continue;
+    }
+    o.hit = true;
+    lives--;
+    player.invuln = 1.4;
+    shake = 1;
+    sound.hit();
+    if (lives <= 0) {
+      saveBest();
+      sound.over();
+      return setState('over');
     }
   }
   for (const orb of world.orbs) {
@@ -254,14 +274,18 @@ function updateSparks(dt: number) {
 
 function autopilot() {
   const px = camX + playerX();
-  const ahead = world.obstacles.filter((o) => !o.hit && o.stunned < 0 && o.x + o.w > px - 20);
-  const hunter = ahead.find((o) => o.kind === 'hunter' && o.x - px < 260);
-  if (hunter && player.grounded) input.queueGlare();
-  // jump geese, and jump hunters when the glare is still cooling down
-  const next = ahead.find((o) => o.kind === 'goose' || (o.kind === 'hunter' && player.glareCd > 0 && player.glareT <= 0));
-  const lead = next ? next.x - px : Infinity;
-  if (player.grounded) input.set(lead > 0 && lead < speed * 0.3);
-  else input.set(player.vy > 0 || lead < 40);
+  const ahead = world.obstacles
+    .filter((o) => !o.hit && o.stunned < 0 && hitbox(o).x1 > px + Player.BODY.left)
+    .sort((a, b) => hitbox(a).x0 - hitbox(b).x0);
+  const scooter = ahead.find((o) => o.kind === 'scooter' && hitbox(o).x0 - px < 260);
+  if (scooter && player.grounded && player.y === 0) input.queueGlare();
+  // jump scooters when the glare is cooling down, and jump onto roofs ahead
+  const next = ahead.find((o) => o.kind !== 'scooter' || (player.glareCd > 0 && player.glareT <= 0));
+  // seconds until it reaches him, counting its own speed
+  const eta = next ? (hitbox(next).x0 - px - Player.BODY.right) / (speed - next.vx) : Infinity;
+  const onIt = next ? player.y >= KINDS[next.kind].h : false;
+  if (player.grounded) input.set(!onIt && eta > 0 && eta < (next?.kind === 'streetcar' ? 0.42 : 0.3));
+  else input.set(player.vy > 0);
 }
 
 // ---------- drawing ----------
@@ -400,9 +424,10 @@ function drawPlayer() {
   if (player.invuln > 0 && Math.floor(time * 16) % 2 === 0) return;
   const { row, col } =
     state === 'playing' ? player.frame(meta.rows) : { row: meta.rows.idle, col: Math.floor(time * 3) % 4 };
-  const x = playerX() - anchor.x;
-  const y = Math.round(ground - player.y - anchor.y);
-  ctx.drawImage(sheet, col * fw, row * fh, fw, fh, x, y, fw, fh);
+  const k = T.playerScale;
+  const x = Math.round(playerX() - anchor.x * k);
+  const y = Math.round(ground - player.y - anchor.y * k);
+  ctx.drawImage(sheet, col * fw, row * fh, fw, fh, x, y, Math.round(fw * k), Math.round(fh * k));
 }
 
 function drawBeam() {
@@ -423,52 +448,16 @@ function drawBeam() {
 }
 
 function drawObstacle(o: Obstacle) {
+  const strip = assets.vehicles[KINDS[o.kind].sprite];
+  const { frameWidth: fw, frameHeight: fh } = strip;
   const x = Math.round(o.x - camX);
-  if (x > W + 40 || x + o.w < -40) return;
-  const y = Math.round(ground - o.y - o.h);
-  ctx.globalAlpha = o.hit ? 0.35 : 1;
-  if (o.kind === 'swarm') {
-    // a jittering cloud of moth dots that scatters when glared
-    const s = Math.max(0, o.stunned);
-    ctx.globalAlpha = o.hit ? 0.35 : o.stunned >= 0 ? Math.max(0, 1 - s * 1.5) : 1;
-    ctx.fillStyle = '#d9cfae';
-    for (let i = 0; i < 26; i++) {
-      const dx = (Math.sin(i * 12.9898 + time * (3 + (i % 4))) * 0.5 + 0.5) * o.w;
-      const dy = (Math.cos(i * 78.233 + time * (4 + (i % 3))) * 0.5 + 0.5) * o.h;
-      const fx = (dx - o.w / 2) * s * 4, fy = (dy - o.h / 2) * s * 4;
-      ctx.fillRect(Math.round(x + dx + fx), Math.round(y + dy + fy), 3, 2);
-    }
-  } else if (o.kind === 'hunter' && o.stunned >= 0) {
-    // stunned: knocked flat, flashlight dropped, stars circling
-    ctx.fillStyle = '#0b0914';
-    ctx.fillRect(x - 21, ground - o.w - 1, o.h + 2, o.w + 2);
-    ctx.fillStyle = '#4a5233';
-    ctx.fillRect(x - 20, ground - o.w, o.h, o.w);
-    ctx.fillStyle = '#fff4b0';
-    for (let i = 0; i < 3; i++) {
-      const a = time * 5 + (i * Math.PI * 2) / 3;
-      ctx.fillRect(Math.round(x + 12 + Math.cos(a) * 16), Math.round(ground - o.w - 12 + Math.sin(a) * 5), 4, 4);
-    }
-  } else {
-    ctx.fillStyle = '#0b0914';
-    ctx.fillRect(x - 1, y - 1, o.w + 2, o.h + 2);
-    ctx.fillStyle = o.kind === 'goose' ? '#e8e4da' : '#5a6b3a';
-    ctx.fillRect(x, y, o.w, o.h);
-    if (o.kind === 'hunter') {
-      // flashlight beam pointed back at the rabbit
-      ctx.fillStyle = 'rgba(255, 240, 170, 0.18)';
-      ctx.beginPath();
-      ctx.moveTo(x, y + 20);
-      ctx.lineTo(x - 120, y - 10);
-      ctx.lineTo(x - 120, y + 60);
-      ctx.fill();
-      ctx.fillStyle = '#fff4b0';
-      ctx.fillRect(x - 4, y + 18, 6, 5);
-    } else {
-      ctx.fillStyle = '#e08a2a';
-      ctx.fillRect(x + o.w - 2, y + 6, 8, 4);
-    }
-  }
+  if (x > W || x + fw < 0) return;
+  let f: number;
+  if (o.kind === 'scooter') f = o.stunned >= 0 ? 4 : Math.floor(time * 8) % 4;
+  else if (o.kind === 'wagon') f = Math.floor(time * 6) % 4;
+  else f = Math.floor(time * 3) % 2;
+  ctx.globalAlpha = o.hit ? 0.35 : o.stunned > 1.2 ? Math.max(0, 1 - (o.stunned - 1.2) * 2) : 1;
+  ctx.drawImage(strip.img, f * fw, 0, fw, fh, x, ground - fh, fw, fh);
   ctx.globalAlpha = 1;
 }
 

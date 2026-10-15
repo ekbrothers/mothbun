@@ -19,8 +19,9 @@ export class Player {
     Object.assign(this, { y: 0, vy: 0, grounded: true, gliding: false, invuln: 0, glareT: 0, glareCd: 0, sinceGround: 0, landT: 0 });
   }
 
-  // Returns true on the frame a jump starts.
-  update(dt: number, input: Input, runSpeed: number): boolean {
+  // Returns true on the frame a jump starts. `floor` is the height of whatever is under
+  // the feet: 0 for the street, or a vehicle roof he was already at or above.
+  update(dt: number, input: Input, runSpeed: number, floor = 0): boolean {
     this.sinceGround = this.grounded ? 0 : this.sinceGround + dt;
     this.invuln = Math.max(0, this.invuln - dt);
     this.landT = Math.max(0, this.landT - dt);
@@ -44,11 +45,13 @@ export class Player {
     if (this.gliding) this.vy = Math.max(this.vy, -T.glideFall);
 
     this.y += this.vy * dt;
-    if (this.y <= 0) {
+    if (this.y <= floor && this.vy <= 0) {
       if (!this.grounded) this.landT = 0.1;
-      this.y = 0;
+      this.y = floor;
       this.vy = 0;
       this.grounded = true;
+    } else {
+      this.grounded = false; // jumped, or ran off the end of a roof
     }
     return jumped;
   }
@@ -69,7 +72,7 @@ export class Player {
 
   // Collision box around the body relative to the foot anchor (x right, y up).
   // Based on the body, not the frame, since the wing-spread frame is much wider.
-  static readonly BODY = { left: -28, right: 12, bottom: 0, top: 72 };
+  static readonly BODY = { left: -28 * T.playerScale, right: 12 * T.playerScale, bottom: 0, top: 72 * T.playerScale };
   // The glowing eye, where the glare beam starts.
-  static readonly EYE = { x: 4, y: 52 };
+  static readonly EYE = { x: 4 * T.playerScale, y: 52 * T.playerScale };
 }

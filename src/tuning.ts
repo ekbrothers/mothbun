@@ -1,5 +1,8 @@
 // Gameplay numbers in one place. Units are art pixels and seconds.
 export const TUNING = {
+  // Mothbun is drawn at this multiple of the sprite sheet; hitbox and eye scale with it.
+  playerScale: 1.25,
+
   // movement
   gravity: 2300,
   jumpVelocity: 860, // about 160 px high, a bit under two rabbit heights
@@ -14,6 +17,11 @@ export const TUNING = {
   levelLength: 18000, // about a minute at the speeds above
   brakeDistance: 700, // slow to a stop over this distance at the end
   lives: 3,
+
+  // vehicles (world speed; the camera runs at the run speed above)
+  scooterSpeed: 130, // toward Mothbun
+  wagonSpeed: 70, // same way he runs, so he catches up and rides across the roof
+  streetcarSpeed: 110,
 
   // red-eye glare
   glareDuration: 0.3,

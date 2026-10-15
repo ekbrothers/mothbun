@@ -1,5 +1,5 @@
 // Sound effects are synthesized with Web Audio. The background music is a streamed,
-// looping mp3 ("Bouncy Runner", a royalty-free Halloween retro track).
+// looping mp3 ("Game 8-bit On" by moodmode, royalty-free from Pixabay).
 // Browsers only allow audio after a tap or key press, so unlock() is called from the
 // first input event.
 
@@ -125,6 +125,13 @@ export class Sound {
   stun() {
     this.tone(520, 780, 0.08, 'square', 0.35);
     this.tone(780, 1170, 0.1, 'square', 0.35, 0.08);
+  }
+  // streetcar bell: two clangs
+  bell() {
+    for (const d of [0, 0.32]) {
+      this.tone(1320, 1300, 0.5, 'triangle', 0.5, d);
+      this.tone(1980, 1950, 0.35, 'sine', 0.25, d);
+    }
   }
   pop() {
     this.noise(0.18, 0.5, 2500);

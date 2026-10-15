@@ -56,7 +56,7 @@ Requires Python with Pillow, NumPy, and SciPy.
 
 - Auto-runner (confirmed): world scrolls on its own. Built for one-thumb phone play.
 - Jump (tap), glide (hold, using the spread-wing frame), red-eye glare attack (code-drawn red beam that stuns).
-- Enemies: cryptid hunters with flashlights and cameras (getting photographed costs a life), moths swarming toward projections, geese or raccoons as ground obstacles.
+- Obstacles are Cincinnati street annoyances, nothing else: e-scooter riders coming at Mothbun (jump them, or glare to wipe them out), pedal wagons and the streetcar rolling the same way he runs but slower (land on the roof and ride across; running into any vehicle costs a life, and the glare does nothing to them). The streetcar is rare and rings its bell as it comes on screen.
 - Collect glowing light orbs from projections. Level ends at Mother of God Church with a final projection show.
 
 ## Status
@@ -67,7 +67,7 @@ Done:
 - Wings tinted indigo by `tools/recolor_wings.py` (reads the original gray sheet from `raw/character-gray/`).
 - Roebling Bridge background layer (`tools/clean_bridge.py`), drawn at 0.35 parallax over a code-drawn river between Music Hall and Mother of God.
 - Title logo (`raw/logo.png` cleaned by `tools/clean_logo.py` into `assets/ui/logo.png`, wings tinted the same indigo, ears recolored to concrete).
-- Stage 1 game (Vite + TypeScript, plain canvas, no engine): title screen, auto-scroll, jump, hold to glide, code-drawn projections, window lights, placeholder obstacles (goose, hunter with flashlight, moth swarm), light orbs, 3 lives, score and best score.
+- Stage 1 game (Vite + TypeScript, plain canvas, no engine): title screen, auto-scroll, jump, hold to glide, code-drawn projections, window lights, light orbs, 3 lives, score and best score.
 
 Code:
 ```
@@ -78,7 +78,7 @@ src/pixel-text.ts crisp pixel-font text for the title
 src/rowhouses.ts code-drawn rowhouses between landmarks
 src/building.ts  facade renderer: projections + per-window lights
 src/player.ts    jump, glide, jump buffer, coyote time, body hitbox
-src/world.ts     obstacle and orb spawning
+src/world.ts     vehicle and orb spawning
 src/input.ts     one-button input (tap, click, space, up)
 src/assets.ts    asset loading
 ```
@@ -86,17 +86,21 @@ src/assets.ts    asset loading
 
 Stage 2 done:
 - Title is "Mothbun Goes to BLINK": bigger logo, pixel-font subtitle with BLINK letters cycling color (`src/pixel-text.ts`).
-- Red-eye glare: on-screen eye button (bottom left) or X/F/Shift/Right. Stuns hunters, scatters swarms, geese are immune.
+- Red-eye glare: on-screen eye button (bottom left) or X/F/Shift/Right. Knocks scooter riders off.
 - Synthesized sound effects (`src/audio.ts`), mute button top right or M.
-- Background music `assets/audio/music.mp3` ("Bouncy Runner", royalty-free, re-encoded from 256 to 96 kbps, 5.5 min loop). Starts on the first gesture, follows mute, pauses when the tab is hidden.
+- Background music `assets/audio/music.mp3` ("Game 8-bit On" by moodmode, Pixabay, royalty-free). Starts on the first gesture, follows mute, pauses when the tab is hidden.
 - Linear level with landmarks front-loaded for short plays: Music Hall at the start, Roebling Bridge around 4 to 19 s, Mother of God around 23 s, the Cincinnati Museum Center (Union Terminal, 3.6x rabbit height, 1071x310) around 27 s, then rowhouses, and Mother of God again at the end for the finale. New iconic buildings should go into the rowhouse stretch. Brakes to a stop, then a finale show with fireworks and a LEVEL CLEAR tally.
 - Projections on the bridge towers (mask from hand-placed tower boxes in `tools/clean_bridge.py`).
 - All gameplay numbers live in `src/tuning.ts`.
 - Code-drawn Over-the-Rhine rowhouses (`src/rowhouses.ts`, seeded so the street is the same every run) fill the street between landmarks, leaving open space around Music Hall, the river by the bridge, and the church.
 - Glare button enlarged (radius 42 art px, generous hit area) with a GLARE label for the first seconds of a run.
 
+- Mothbun drawn at `playerScale` (1.25x the sheet, in `src/tuning.ts`); hitbox and eye scale with it.
+- Vehicle sprites cleaned by `tools/clean_vehicles.py` from `raw/scooter.png`, `raw/pedal-wagon.png`, `raw/streetcar.png` into `assets/vehicles/` (frame strips plus JSON, night-graded, day versions in `day/`). In the game: scooter (4 ride frames + wipeout), pedal wagon (roof 112 px up), streetcar (roof 124 px up). Hitboxes, roof heights, and which ones are platforms are in `KINDS` in `src/world.ts`; speeds are in `src/tuning.ts`. The world plans each vehicle by where Mothbun will meet it and spawns it off screen accordingly, since vehicles move. `Player.update` takes a `floor` (roof height he's on or above).
+- The placeholder goose, cryptid hunter, and moth swarm are gone.
+
 Still needed:
-- Real sprites for enemies and obstacles, moth sprite sheet, title-pose art, optionally a hurt frame.
+- Title-pose art, optionally a hurt frame. The streetcar art is teal; the real one may want a different livery.
 - More set pieces for the long middle stretch, and on-device tuning feedback.
 
 ## Working style

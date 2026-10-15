@@ -7,7 +7,7 @@ A pixel art auto-runner starring a weathered concrete rabbit lawn statue dressed
 
 ![Finale at Mother of God](docs/finale.png)
 
-**Play:** tap (or press space) to jump, hold to glide, and hit the eye button (or X) to fire a red-eye glare that stuns cryptid hunters. Reach Mother of God Church for the closing light show. Best on a phone held sideways.
+**Play:** tap (or press space) to jump, hold to glide, and hit the eye button (or X) to fire a red-eye glare that knocks scooter riders off. Ride the roofs of pedal wagons and the streetcar, but don't run into them. Reach Mother of God Church for the closing light show. Best on a phone held sideways.
 
 ## How it's built
 
@@ -32,8 +32,9 @@ python tools/build_window_lights.py
 python tools/clean_logo.py
 python tools/clean_bridge.py
 python tools/recolor_wings.py
+python tools/clean_vehicles.py
 ```
 
 ## Credits
 
-Background music: "Bouncy Runner", a royalty-free Halloween retro gaming track, re-encoded to 96 kbps.
+Background music: "Game 8-bit On" by moodmode (Pixabay, royalty-free).
