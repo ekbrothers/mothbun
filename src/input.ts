@@ -7,7 +7,7 @@ const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW', 'Enter'];
 const GLARE_KEYS = ['KeyX', 'KeyF', 'ShiftLeft', 'ShiftRight', 'ArrowRight'];
 
 export class Input {
-  onGesture?: () => void;
+  onGesture?: (touch: boolean) => void;
   private jumpPointers = new Set<number>();
   private keyHeld = false;
   private pressedAt = -Infinity;
@@ -17,7 +17,7 @@ export class Input {
   constructor(canvas: HTMLCanvasElement, zoneAt: (x: number, y: number) => Zone) {
     canvas.addEventListener('pointerdown', (e) => {
       e.preventDefault();
-      this.onGesture?.();
+      this.onGesture?.(e.pointerType === 'touch');
       const r = canvas.getBoundingClientRect();
       const zone = zoneAt(((e.clientX - r.left) / r.width) * canvas.width, ((e.clientY - r.top) / r.height) * canvas.height);
       if (zone === 'glare') this.glareQueued = true;
@@ -38,12 +38,12 @@ export class Input {
     addEventListener('keydown', (e) => {
       if (JUMP_KEYS.includes(e.code)) {
         e.preventDefault();
-        this.onGesture?.();
+        this.onGesture?.(false);
         if (!e.repeat && !this.held) this.pressedAt = performance.now();
         this.keyHeld = true;
       } else if (GLARE_KEYS.includes(e.code)) {
         e.preventDefault();
-        this.onGesture?.();
+        this.onGesture?.(false);
         if (!e.repeat) this.glareQueued = true;
       } else if (e.code === 'KeyM' && !e.repeat) {
         this.muteQueued = true;

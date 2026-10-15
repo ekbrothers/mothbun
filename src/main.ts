@@ -40,7 +40,22 @@ const input = new Input(canvas, zoneAt);
 const sound = new Sound();
 const player = new Player();
 const world = new World((sprite) => assets.vehicles[sprite].variants ?? 1);
-input.onGesture = () => sound.unlock();
+input.onGesture = (touch) => {
+  sound.unlock();
+  // Phones: hide the browser bar with fullscreen and hold landscape. Only from a tap
+  // outside a run, so backing out of fullscreen mid-run doesn't get undone on the next jump.
+  if (touch && state !== 'playing') goFullscreen();
+};
+
+function goFullscreen() {
+  const el = document.documentElement;
+  if (document.fullscreenElement || !el.requestFullscreen) return;
+  el.requestFullscreen({ navigationUI: 'hide' })
+    .then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape'))
+    .catch(() => {
+      /* not allowed here (iPhone Safari, or an iframe without permission); play as is */
+    });
+}
 
 let assets: Assets;
 let pieces: Piece[] = [];
