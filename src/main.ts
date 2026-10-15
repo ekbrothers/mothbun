@@ -39,7 +39,7 @@ const ctx = canvas.getContext('2d')!;
 const input = new Input(canvas, zoneAt);
 const sound = new Sound();
 const player = new Player();
-const world = new World();
+const world = new World((kind) => assets.vehicles[KINDS[kind].sprite].variants ?? 1);
 input.onGesture = () => sound.unlock();
 
 let assets: Assets;
@@ -178,18 +178,18 @@ function updateRun(dt: number) {
   if (player.update(dt, input, speed, floor)) sound.jump();
 
   for (const o of world.obstacles) {
-    if (o.kind === 'streetcar' && !o.warned && o.x - camX < W + 80) {
+    if (o.kind === 'streetcar' && !o.warned && o.x - camX < W + KINDS.streetcar.margin + 20) {
       o.warned = true;
       sound.bell();
     }
   }
 
-  // glare beam knocks scooter riders off; it does nothing to the big vehicles
+  // glare beam knocks scooter riders off and stops strollers; it does nothing to the big vehicles
   if (player.glareT > 0) {
     const x0 = px + Player.EYE.x, x1 = x0 + T.glareRange;
     const ey = player.y + Player.EYE.y;
     for (const o of world.obstacles) {
-      if (o.kind !== 'scooter' || o.hit || o.stunned >= 0) continue;
+      if (KINDS[o.kind].platform || o.hit || o.stunned >= 0) continue;
       const h = hitbox(o);
       if (h.x0 < x1 && h.x1 > x0 && ey - T.glareHeight / 2 < h.top) {
         o.stunned = 0;
@@ -277,14 +277,15 @@ function autopilot() {
   const ahead = world.obstacles
     .filter((o) => !o.hit && o.stunned < 0 && hitbox(o).x1 > px + Player.BODY.left)
     .sort((a, b) => hitbox(a).x0 - hitbox(b).x0);
-  const scooter = ahead.find((o) => o.kind === 'scooter' && hitbox(o).x0 - px < 260);
+  const scooter = ahead.find((o) => !KINDS[o.kind].platform && hitbox(o).x0 - px < 260);
   if (scooter && player.grounded && player.y === 0) input.queueGlare();
   // jump scooters when the glare is cooling down, and jump onto roofs ahead
-  const next = ahead.find((o) => o.kind !== 'scooter' || (player.glareCd > 0 && player.glareT <= 0));
+  const next = ahead.find((o) => KINDS[o.kind].platform || (player.glareCd > 0 && player.glareT <= 0));
   // seconds until it reaches him, counting its own speed
   const eta = next ? (hitbox(next).x0 - px - Player.BODY.right) / (speed - next.vx) : Infinity;
   const onIt = next ? player.y >= KINDS[next.kind].h : false;
-  if (player.grounded) input.set(!onIt && eta > 0 && eta < (next?.kind === 'streetcar' ? 0.42 : 0.3));
+  const jumpAt = { scooter: 0.3, stroller: 0.3, wagon: 0.38, streetcar: 0.35 }[next?.kind ?? 'scooter'];
+  if (player.grounded) input.set(!onIt && eta > 0 && eta < jumpAt);
   else input.set(player.vy > 0);
 }
 
@@ -295,6 +296,7 @@ function draw() {
   if (shake > 0) ctx.translate(Math.round((Math.random() - 0.5) * 8 * shake), Math.round((Math.random() - 0.5) * 6 * shake));
   drawSky();
   drawSkyline();
+  drawSparks(); // fireworks go off behind the buildings
   drawRowhouses();
   for (const p of pieces) drawPiece(p);
   drawStreet();
@@ -304,7 +306,6 @@ function draw() {
   }
   drawPlayer();
   drawBeam();
-  drawSparks();
   ctx.restore();
 
   if (state === 'title') drawTitle();
@@ -454,10 +455,21 @@ function drawObstacle(o: Obstacle) {
   if (x > W || x + fw < 0) return;
   let f: number;
   if (o.kind === 'scooter') f = o.stunned >= 0 ? 4 : Math.floor(time * 8) % 4;
+  else if (o.kind === 'stroller') f = o.stunned >= 0 ? 4 : Math.floor(time * 6) % 4;
   else if (o.kind === 'wagon') f = Math.floor(time * 6) % 4;
   else f = Math.floor(time * 3) % 2;
-  ctx.globalAlpha = o.hit ? 0.35 : o.stunned > 1.2 ? Math.max(0, 1 - (o.stunned - 1.2) * 2) : 1;
-  ctx.drawImage(strip.img, f * fw, 0, fw, fh, x, ground - fh, fw, fh);
+  ctx.globalAlpha = o.hit ? 0.35 : o.kind === 'scooter' && o.stunned > 1.2 ? Math.max(0, 1 - (o.stunned - 1.2) * 2) : 1;
+  const sy = o.variant * fh;
+  if (o.vx < 0 && o.kind === 'streetcar') {
+    // the art faces right; mirror it so it drives toward Mothbun
+    ctx.save();
+    ctx.translate(x + fw, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(strip.img, f * fw, sy, fw, fh, 0, ground - fh, fw, fh);
+    ctx.restore();
+  } else {
+    ctx.drawImage(strip.img, f * fw, sy, fw, fh, x, ground - fh, fw, fh);
+  }
   ctx.globalAlpha = 1;
 }
 

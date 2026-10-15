@@ -17,7 +17,7 @@ export interface BuildingArt {
 export const BUILDINGS = ['music-hall', 'mother-of-god', 'museum-center'] as const;
 export type BuildingName = (typeof BUILDINGS)[number];
 
-export const VEHICLES = ['scooter', 'pedal-wagon', 'streetcar'] as const;
+export const VEHICLES = ['scooter', 'pedal-wagon', 'streetcar', 'stroller'] as const;
 export type VehicleName = (typeof VEHICLES)[number];
 
 // A strip of equal-width frames, side by side.
@@ -26,6 +26,7 @@ export interface Strip {
   frameWidth: number;
   frameHeight: number;
   frames: number;
+  variants?: number; // color variants, one row each
 }
 
 export interface Assets {

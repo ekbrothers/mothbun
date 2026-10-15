@@ -1,25 +1,30 @@
+import type { VehicleName } from './assets';
 import { TUNING as T } from './tuning';
 
 // Vehicles and light orbs. Positions are in world x (the camera scrolls right).
-// Scooter riders come at Mothbun; pedal wagons and the streetcar roll the same way he
-// runs, only slower, and their roofs are platforms he can land on. Running into any of
-// them costs a life.
+// Scooter riders, strollers, and the streetcar come at Mothbun; pedal wagons roll the same way he
+// runs, only slower. Wagon and streetcar roofs are platforms he can land on. Running
+// into any of them costs a life.
 
-export type VehicleKind = 'scooter' | 'wagon' | 'streetcar';
+export type VehicleKind = 'scooter' | 'stroller' | 'wagon' | 'streetcar';
 
 interface KindSpec {
-  sprite: 'scooter' | 'pedal-wagon' | 'streetcar';
+  sprite: VehicleName;
   hx: number; // hitbox left edge, from the sprite's left edge
   w: number;
   h: number; // hitbox height; for platforms this is the roof height
   vx: number; // world speed, positive is the same way Mothbun runs
+  margin: number; // how far past the right edge it appears
   platform: boolean;
 }
 
 export const KINDS: Record<VehicleKind, KindSpec> = {
-  scooter: { sprite: 'scooter', hx: 10, w: 56, h: 96, vx: -T.scooterSpeed, platform: false },
-  wagon: { sprite: 'pedal-wagon', hx: 0, w: 180, h: 112, vx: T.wagonSpeed, platform: true },
-  streetcar: { sprite: 'streetcar', hx: 4, w: 566, h: 124, vx: T.streetcarSpeed, platform: true },
+  scooter: { sprite: 'scooter', hx: 10, w: 56, h: 96, vx: -T.scooterSpeed, margin: 60, platform: false },
+  // the glare stops her short instead of knocking her over
+  stroller: { sprite: 'stroller', hx: 6, w: 78, h: 84, vx: -T.strollerSpeed, margin: 60, platform: false },
+  wagon: { sprite: 'pedal-wagon', hx: 0, w: 225, h: 140, vx: T.wagonSpeed, margin: 60, platform: true },
+  // appears well off screen so its bell rings before it arrives
+  streetcar: { sprite: 'streetcar', hx: 4, w: 566, h: 124, vx: -T.streetcarSpeed, margin: 700, platform: true },
 };
 
 export interface Obstacle {
@@ -29,6 +34,7 @@ export interface Obstacle {
   hit: boolean; // ran into it; it turns see-through and harmless
   stunned: number; // seconds since the glare hit it, or -1
   warned: boolean; // streetcar bell rung
+  variant: number; // color variant row in the sprite strip
 }
 
 export interface Orb {
@@ -53,6 +59,8 @@ export class World {
   private nextKind: VehicleKind = 'scooter';
   private sinceStreetcar = 0;
 
+  constructor(private variants: (kind: VehicleKind) => number) {}
+
   reset(startX: number) {
     this.obstacles = [];
     this.orbs = [];
@@ -66,7 +74,7 @@ export class World {
     for (const o of this.obstacles) {
       if (o.stunned >= 0) {
         o.stunned += dt;
-        o.vx *= Math.max(0, 1 - dt * 3); // the scooter skids to a stop
+        o.vx *= Math.max(0, 1 - dt * 3); // skids or stops short
       }
       o.x += o.vx * dt;
     }
@@ -75,7 +83,7 @@ export class World {
       // spawn once the vehicle would be just off the right edge when placed on course
       const t = (this.nextMeet - px) / speed;
       const x = this.nextMeet - k.vx * t - k.hx;
-      if (x > camX + viewW + 60) break;
+      if (x > camX + viewW + k.margin) break;
       this.spawn(x, speed, difficulty);
     }
     const gone = camX - 700;
@@ -86,7 +94,8 @@ export class World {
   private spawn(x: number, speed: number, difficulty: number) {
     const kind = this.nextKind;
     const k = KINDS[kind];
-    this.obstacles.push({ kind, x, vx: k.vx, hit: false, stunned: -1, warned: false });
+    const variant = Math.floor(Math.random() * this.variants(kind));
+    this.obstacles.push({ kind, x, vx: k.vx, hit: false, stunned: -1, warned: false, variant });
 
     // how far Mothbun runs while passing it (long for slow platforms he rides across)
     const pass = (k.w * speed) / (speed - k.vx);
@@ -107,13 +116,16 @@ export class World {
     const gap = speed * (1.3 - 0.35 * difficulty) + Math.random() * speed * 1.4;
     this.nextMeet = m + pass + gap;
 
+    // The streetcar drives toward Mothbun and wagons drive away, so they would pass
+    // through each other: never put one right before or after the other.
     this.sinceStreetcar++;
     const roll = Math.random();
-    if (difficulty > 0.15 && this.sinceStreetcar > 6 && roll < 0.2) {
+    if (kind !== 'wagon' && kind !== 'streetcar' && difficulty > 0.15 && this.sinceStreetcar > 6 && roll < 0.2) {
       this.nextKind = 'streetcar';
       this.sinceStreetcar = 0;
     } else {
-      this.nextKind = difficulty > 0.08 && roll < 0.45 ? 'wagon' : 'scooter';
+      const walker = Math.random() < 0.35 ? 'stroller' : 'scooter';
+      this.nextKind = kind !== 'streetcar' && difficulty > 0.08 && roll < 0.35 ? 'wagon' : walker;
     }
   }
 }

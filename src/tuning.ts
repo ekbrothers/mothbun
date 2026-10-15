@@ -20,8 +20,9 @@ export const TUNING = {
 
   // vehicles (world speed; the camera runs at the run speed above)
   scooterSpeed: 130, // toward Mothbun
-  wagonSpeed: 70, // same way he runs, so he catches up and rides across the roof
-  streetcarSpeed: 110,
+  strollerSpeed: 50, // toward Mothbun, walking
+  wagonSpeed: 70, // same way he runs, so he catches up and runs across the roof
+  streetcarSpeed: 90, // toward Mothbun, so a ride on its roof is short
 
   // red-eye glare
   glareDuration: 0.3,

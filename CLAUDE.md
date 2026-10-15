@@ -56,7 +56,7 @@ Requires Python with Pillow, NumPy, and SciPy.
 
 - Auto-runner (confirmed): world scrolls on its own. Built for one-thumb phone play.
 - Jump (tap), glide (hold, using the spread-wing frame), red-eye glare attack (code-drawn red beam that stuns).
-- Obstacles are Cincinnati street annoyances, nothing else: e-scooter riders coming at Mothbun (jump them, or glare to wipe them out), pedal wagons and the streetcar rolling the same way he runs but slower (land on the roof and ride across; running into any vehicle costs a life, and the glare does nothing to them). The streetcar is rare and rings its bell as it comes on screen.
+- Obstacles are Cincinnati street annoyances, nothing else: e-scooter riders coming at Mothbun (jump them, or glare to wipe them out), a woman pushing a jogging stroller toward him (jump, or glare and she stops short, startled; drawn at the scooter's scale via `'stroller':('scooter',...)` in `clean_vehicles.py`; the green water bottle keys out to an outline), pedal wagons rolling the same way he runs but slower, and the streetcar driving toward him (land on either roof and run across; running into any vehicle costs a life, and the glare does nothing to them). The streetcar is rare and rings its bell as it comes on screen.
 - Collect glowing light orbs from projections. Level ends at Mother of God Church with a final projection show.
 
 ## Status
@@ -96,7 +96,7 @@ Stage 2 done:
 - Glare button enlarged (radius 42 art px, generous hit area) with a GLARE label for the first seconds of a run.
 
 - Mothbun drawn at `playerScale` (1.25x the sheet, in `src/tuning.ts`); hitbox and eye scale with it.
-- Vehicle sprites cleaned by `tools/clean_vehicles.py` from `raw/scooter.png`, `raw/pedal-wagon.png`, `raw/streetcar.png` into `assets/vehicles/` (frame strips plus JSON, night-graded, day versions in `day/`). In the game: scooter (4 ride frames + wipeout), pedal wagon (roof 112 px up), streetcar (roof 124 px up). Hitboxes, roof heights, and which ones are platforms are in `KINDS` in `src/world.ts`; speeds are in `src/tuning.ts`. The world plans each vehicle by where Mothbun will meet it and spawns it off screen accordingly, since vehicles move. `Player.update` takes a `floor` (roof height he's on or above).
+- Vehicle sprites cleaned by `tools/clean_vehicles.py` from `raw/scooter.png`, `raw/pedal-wagon.png`, `raw/streetcar.png` into `assets/vehicles/` (frame strips plus JSON, night-graded, day versions in `day/`). In the game: scooter (4 ride frames + wipeout, 4 color variants as rows, made by `clean_vehicles.py`), pedal wagon (roof 140 px up), streetcar (roof 124 px up, art faces right so it's mirrored in code). A streetcar never comes right before or after a wagon, since they'd drive through each other. Finale fireworks are drawn behind the buildings. Hitboxes, roof heights, and which ones are platforms are in `KINDS` in `src/world.ts`; speeds are in `src/tuning.ts`. The world plans each vehicle by where Mothbun will meet it and spawns it off screen accordingly, since vehicles move. `Player.update` takes a `floor` (roof height he's on or above).
 - The placeholder goose, cryptid hunter, and moth swarm are gone.
 
 Still needed:
