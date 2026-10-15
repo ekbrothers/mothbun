@@ -93,6 +93,7 @@ Stage 2 done:
 - Projections on the bridge towers (mask from hand-placed tower boxes in `tools/clean_bridge.py`).
 - All gameplay numbers live in `src/tuning.ts`.
 - Code-drawn Over-the-Rhine rowhouses (`src/rowhouses.ts`, seeded so the street is the same every run) fill the street between landmarks, leaving open space around Music Hall, the river by the bridge, and the church.
+- Fullscreen: a touch that starts a run requests fullscreen and locks landscape, and a toggle button sits left of mute (hidden where `document.fullscreenEnabled` is false, like iPhone Safari). `assets/manifest.webmanifest` makes Add to Home screen launch fullscreen. Lives are pixel hearts that empty from the right.
 - Glare button enlarged (radius 42 art px, generous hit area) with a GLARE label for the first seconds of a run.
 
 - Mothbun drawn at `playerScale` (1.25x the sheet, in `src/tuning.ts`); hitbox and eye scale with it.

@@ -1,13 +1,15 @@
-// Touch, mouse, and keyboard input. Taps land in a zone: the on-screen glare and mute
-// buttons, or anywhere else for jump. Jump tracks held state per pointer so a second
+// Touch, mouse, and keyboard input. Taps land in a zone: the on-screen glare, mute, and
+// fullscreen buttons, or anywhere else for jump. Jump tracks held state per pointer so a second
 // finger on the glare button doesn't end a glide.
-export type Zone = 'jump' | 'glare' | 'mute';
+export type Zone = 'jump' | 'glare' | 'mute' | 'fullscreen';
 
 const JUMP_KEYS = ['Space', 'ArrowUp', 'KeyW', 'Enter'];
 const GLARE_KEYS = ['KeyX', 'KeyF', 'ShiftLeft', 'ShiftRight', 'ArrowRight'];
 
 export class Input {
-  onGesture?: (touch: boolean) => void;
+  // Called inside the input event, so it can do things browsers only allow right after
+  // a tap or key press (start audio, go fullscreen).
+  onGesture?: (touch: boolean, zone: Zone) => void;
   private jumpPointers = new Set<number>();
   private keyHeld = false;
   private pressedAt = -Infinity;
@@ -17,9 +19,10 @@ export class Input {
   constructor(canvas: HTMLCanvasElement, zoneAt: (x: number, y: number) => Zone) {
     canvas.addEventListener('pointerdown', (e) => {
       e.preventDefault();
-      this.onGesture?.(e.pointerType === 'touch');
       const r = canvas.getBoundingClientRect();
       const zone = zoneAt(((e.clientX - r.left) / r.width) * canvas.width, ((e.clientY - r.top) / r.height) * canvas.height);
+      this.onGesture?.(e.pointerType === 'touch', zone);
+      if (zone === 'fullscreen') return;
       if (zone === 'glare') this.glareQueued = true;
       else if (zone === 'mute') this.muteQueued = true;
       else {
@@ -38,12 +41,12 @@ export class Input {
     addEventListener('keydown', (e) => {
       if (JUMP_KEYS.includes(e.code)) {
         e.preventDefault();
-        this.onGesture?.(false);
+        this.onGesture?.(false, 'jump');
         if (!e.repeat && !this.held) this.pressedAt = performance.now();
         this.keyHeld = true;
       } else if (GLARE_KEYS.includes(e.code)) {
         e.preventDefault();
-        this.onGesture?.(false);
+        this.onGesture?.(false, 'glare');
         if (!e.repeat) this.glareQueued = true;
       } else if (e.code === 'KeyM' && !e.repeat) {
         this.muteQueued = true;

@@ -40,16 +40,24 @@ const input = new Input(canvas, zoneAt);
 const sound = new Sound();
 const player = new Player();
 const world = new World((sprite) => assets.vehicles[sprite].variants ?? 1);
-input.onGesture = (touch) => {
+input.onGesture = (touch, zone) => {
   sound.unlock();
+  if (zone === 'fullscreen') {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    else goFullscreen();
+    return;
+  }
   // Phones: hide the browser bar with fullscreen and hold landscape. Only from a tap
   // outside a run, so backing out of fullscreen mid-run doesn't get undone on the next jump.
-  if (touch && state !== 'playing') goFullscreen();
+  if (touch && zone === 'jump' && state !== 'playing') goFullscreen();
 };
+
+// false on iPhone Safari, and in an iframe that doesn't allow fullscreen
+const canFullscreen = !!document.fullscreenEnabled;
 
 function goFullscreen() {
   const el = document.documentElement;
-  if (document.fullscreenElement || !el.requestFullscreen) return;
+  if (!canFullscreen || document.fullscreenElement) return;
   el.requestFullscreen({ navigationUI: 'hide' })
     .then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape'))
     .catch(() => {
@@ -91,10 +99,13 @@ const playerX = () => Math.round(Math.min(W * 0.25, 260));
 // on-screen buttons, in art pixels
 const glareBtn = () => ({ x: 74, y: H - 84, r: 42 });
 const muteBtn = () => ({ x: W - 46, y: 10, w: 34, h: 30 });
+const fullBtn = () => ({ x: W - 86, y: 10, w: 34, h: 30 });
 
 function zoneAt(x: number, y: number): Zone {
   const m = muteBtn();
   if (x >= m.x && x <= m.x + m.w && y >= m.y && y <= m.y + m.h) return 'mute';
+  const f = fullBtn();
+  if (canFullscreen && x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h) return 'fullscreen';
   const g = glareBtn();
   if (state === 'playing' && Math.hypot(x - g.x, y - g.y) <= g.r + 24) return 'glare';
   return 'jump';
@@ -328,6 +339,7 @@ function draw() {
   if (state === 'over') drawGameOver();
   if (state === 'clear') drawClear();
   drawMute();
+  drawFullscreenButton();
   if (portrait() && (state === 'title' || state === 'playing')) drawRotateHint();
 }
 
@@ -566,14 +578,14 @@ function drawTitle() {
 function drawHud() {
   text(`SCORE ${String(score()).padStart(6, '0')}`, 16, 16, 16);
   for (let i = 0; i < T.lives; i++) {
-    const x = W - 76 - i * 26;
-    ctx.fillStyle = '#0b0914';
-    ctx.fillRect(x - 2, 14, 18, 18);
-    ctx.fillStyle = i < lives ? '#ff2a2a' : '#3a2230';
-    ctx.fillRect(x, 16, 14, 14);
-    if (i < lives) {
+    const x = W - (canFullscreen ? 118 : 78) - i * 28;
+    const full = i >= T.lives - lives; // hearts empty from the right
+    // dark outline: the heart drawn a pixel bigger in every direction
+    for (const [dx, dy] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) drawHeart(x + dx, 16 + dy, '#0b0914');
+    drawHeart(x, 16, full ? '#ff2a2a' : '#3a2230');
+    if (full) {
       ctx.fillStyle = '#ffb0a0';
-      ctx.fillRect(x + 3, 19, 4, 4);
+      ctx.fillRect(x + 2, 18, 4, 2);
     }
   }
 
@@ -590,6 +602,16 @@ function drawHud() {
   ctx.fillRect(bx + bw - 3, by - 6, 4, 16);
 
   if (state === 'playing') drawGlareButton();
+}
+
+// A 7 by 6 pixel heart, drawn at 2x (14 by 12 art px).
+const HEART = ['.XX.XX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '...X...'];
+
+function drawHeart(x: number, y: number, color: string) {
+  ctx.fillStyle = color;
+  HEART.forEach((row, r) => {
+    for (let c = 0; c < row.length; c++) if (row[c] === 'X') ctx.fillRect(x + c * 2, y + r * 2, 2, 2);
+  });
 }
 
 function drawGlareButton() {
@@ -642,6 +664,24 @@ function drawMute() {
   } else {
     ctx.fillRect(x + 21, y + 11, 2, 8);
     ctx.fillRect(x + 25, y + 8, 2, 14);
+  }
+}
+
+// Four corner brackets: pointing out to go fullscreen, pointing in to leave it.
+function drawFullscreenButton() {
+  if (state === 'loading' || !canFullscreen) return;
+  const { x, y, w, h } = fullBtn();
+  ctx.fillStyle = 'rgba(11, 9, 20, 0.6)';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#d8d2f0';
+  const inward = !!document.fullscreenElement;
+  const l = x + 8, r = x + w - 8, t = y + 6, b = y + h - 6, n = 7;
+  for (const [cx, cy, sx, sy] of [[l, t, 1, 1], [r, t, -1, 1], [l, b, 1, -1], [r, b, -1, -1]]) {
+    // corner point, with arms running along the edges (out) or toward the center (in)
+    const ax = inward ? cx + sx * n : cx, ay = inward ? cy + sy * n : cy;
+    const dx = inward ? -sx : sx, dy = inward ? -sy : sy;
+    ctx.fillRect(Math.min(ax, ax + dx * n), ay - (dy < 0 ? 2 : 0), n, 2);
+    ctx.fillRect(ax - (dx < 0 ? 2 : 0), Math.min(ay, ay + dy * n), 2, n);
   }
 }
 
