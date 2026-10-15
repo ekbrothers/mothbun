@@ -20,6 +20,8 @@ SCOOTER_VARIANTS=[
     ((240,120,30),(0.50,0.55),(0.58,0.35,1.25)),       # orange scooter, teal jacket, light jeans
     ((200,205,215),(0.78,0.45),(0.10,0.30,1.35)),      # white scooter, purple jacket, khakis
 ]
+# the second rider keeps his clothes and only the scooter changes color
+GUY_VARIANTS=[(sc,None,None) for sc,_,_ in SCOOTER_VARIANTS]
 def scooter_variant(rgb,alpha,FW,ride_frames,spec):
     sc,jk,pt=spec
     out=rgb.copy()
@@ -33,8 +35,8 @@ def scooter_variant(rgb,alpha,FW,ride_frames,spec):
     # scooter: dark blue-gray metal along the deck and wheels, and the stem at the front
     low=np.where(fr<ride_frames,H*0.85,H*0.77); stem=np.where(fr<ride_frames,18,12)
     metal=alpha&(v>0.06)&(v<0.45)&(((h>190)&(h<235))|(s<0.2))&((yy>=low)|((fx<=stem)&(yy>=H*0.36)))  # stem starts below the phone
-    out[jacket]=from_hsv(np.full(jacket.sum(),jk[0]),np.full(jacket.sum(),jk[1]),v[jacket])
-    out[pants]=from_hsv(np.full(pants.sum(),pt[0]),np.full(pants.sum(),pt[1]),np.clip(v[pants]*pt[2],0,1))
+    if jk: out[jacket]=from_hsv(np.full(jacket.sum(),jk[0]),np.full(jacket.sum(),jk[1]),v[jacket])
+    if pt: out[pants]=from_hsv(np.full(pants.sum(),pt[0]),np.full(pants.sum(),pt[1]),np.clip(v[pants]*pt[2],0,1))
     out[metal]=np.clip(np.array(sc)[None,:]*(v[metal]/0.3)[:,None],0,255)
     return out
 
@@ -44,7 +46,8 @@ specs={
     'scooter':(104,0.35),     # rider about the drawn rabbit's height so a full jump clears it
     'pedal-wagon':(140,0.6),  # canopy roof still low enough to land on from a full jump
     'streetcar':(180,0.6),
-    'stroller':('scooter',0.35),  # drawn at the scooter's scale so the two people match    # includes the pantograph; the roof sits about 132 px up
+    'stroller':('scooter',0.35),
+    'scooter-guy':('scooter',0.35),  # a second rider; scooter colors vary, clothes stay as drawn  # drawn at the scooter's scale so the two people match    # includes the pantograph; the roof sits about 132 px up
 }
 def frame1_height(name):
     im=np.array(Image.open(f'raw/{name}.png').convert('RGB')).astype(int)
@@ -93,7 +96,7 @@ for name,(target,grade) in specs.items():
     q=Image.fromarray(np.uint8(np.clip(rgb,0,255))).quantize(colors=48,method=Image.Quantize.MEDIANCUT).convert('RGB')
     rgb=np.array(q).astype(float)
     Image.fromarray(np.dstack([rgb,alpha*255]).astype(np.uint8),'RGBA').save(f'assets/vehicles/day/{name}.png')
-    variants=SCOOTER_VARIANTS if name=='scooter' else [(None,None,None)]
+    variants={'scooter':SCOOTER_VARIANTS,'scooter-guy':GUY_VARIANTS}.get(name,[(None,None,None)])
     rgb=np.concatenate([scooter_variant(rgb,alpha,FW,4,v) for v in variants]); alpha=np.concatenate([alpha]*len(variants))
     R,G,B=rgb[...,0],rgb[...,1],rgb[...,2]
     lit=(R>170)&(G>110)&(R>B+70)

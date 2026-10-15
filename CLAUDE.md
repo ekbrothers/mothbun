@@ -55,8 +55,8 @@ Requires Python with Pillow, NumPy, and SciPy.
 ## Game design
 
 - Auto-runner (confirmed): world scrolls on its own. Built for one-thumb phone play.
-- Jump (tap), glide (hold, using the spread-wing frame), red-eye glare attack (code-drawn red beam that stuns).
-- Obstacles are Cincinnati street annoyances, nothing else: e-scooter riders coming at Mothbun (jump them, or glare to wipe them out), a woman pushing a jogging stroller toward him (jump, or glare and she stops short, startled; drawn at the scooter's scale via `'stroller':('scooter',...)` in `clean_vehicles.py`; the green water bottle keys out to an outline), pedal wagons rolling the same way he runs but slower, and the streetcar driving toward him (land on either roof and run across; running into any vehicle costs a life, and the glare does nothing to them). The streetcar is rare and rings its bell as it comes on screen.
+- Jump (tap), one double bounce per jump (tap again in the air), glide (hold, using the spread-wing frame), red-eye glare attack (code-drawn red beam that stuns).
+- Obstacles are Cincinnati street annoyances, nothing else: e-scooter riders coming at Mothbun (two riders, `scooter` and `scooter-guy`, picked 50/50, each with 4 scooter color variants; jump them, or glare to wipe them out), a woman pushing a jogging stroller toward him (jump, or glare and she stops short, startled; drawn at the scooter's scale via `'stroller':('scooter',...)` in `clean_vehicles.py`; the green water bottle keys out to an outline), pedal wagons rolling the same way he runs but slower, and the streetcar driving toward him (land on either roof and run across; running into any vehicle costs a life, and the glare does nothing to them). The streetcar is rare and rings its bell as it comes on screen.
 - Collect glowing light orbs from projections. Level ends at Mother of God Church with a final projection show.
 
 ## Status

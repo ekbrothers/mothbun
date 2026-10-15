@@ -34,6 +34,7 @@ export interface Obstacle {
   hit: boolean; // ran into it; it turns see-through and harmless
   stunned: number; // seconds since the glare hit it, or -1
   warned: boolean; // streetcar bell rung
+  sprite: VehicleName; // scooters pick one of two riders
   variant: number; // color variant row in the sprite strip
 }
 
@@ -59,7 +60,7 @@ export class World {
   private nextKind: VehicleKind = 'scooter';
   private sinceStreetcar = 0;
 
-  constructor(private variants: (kind: VehicleKind) => number) {}
+  constructor(private variants: (sprite: VehicleName) => number) {}
 
   reset(startX: number) {
     this.obstacles = [];
@@ -94,8 +95,9 @@ export class World {
   private spawn(x: number, speed: number, difficulty: number) {
     const kind = this.nextKind;
     const k = KINDS[kind];
-    const variant = Math.floor(Math.random() * this.variants(kind));
-    this.obstacles.push({ kind, x, vx: k.vx, hit: false, stunned: -1, warned: false, variant });
+    const sprite: VehicleName = kind === 'scooter' && Math.random() < 0.5 ? 'scooter-guy' : k.sprite;
+    const variant = Math.floor(Math.random() * this.variants(sprite));
+    this.obstacles.push({ kind, x, vx: k.vx, hit: false, stunned: -1, warned: false, sprite, variant });
 
     // how far Mothbun runs while passing it (long for slow platforms he rides across)
     const pass = (k.w * speed) / (speed - k.vx);

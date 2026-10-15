@@ -6,6 +6,7 @@ export const TUNING = {
   // movement
   gravity: 2300,
   jumpVelocity: 860, // about 160 px high, a bit under two rabbit heights
+  doubleJumpVelocity: 720, // the one extra bounce in the air, a bit weaker than the first
   jumpCut: 1.2, // extra gravity while rising after the button is let go (short hops)
   glideFall: 72, // max fall speed while holding
   jumpBufferMs: 130,

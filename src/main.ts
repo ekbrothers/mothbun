@@ -39,7 +39,7 @@ const ctx = canvas.getContext('2d')!;
 const input = new Input(canvas, zoneAt);
 const sound = new Sound();
 const player = new Player();
-const world = new World((kind) => assets.vehicles[KINDS[kind].sprite].variants ?? 1);
+const world = new World((sprite) => assets.vehicles[sprite].variants ?? 1);
 input.onGesture = () => sound.unlock();
 
 let assets: Assets;
@@ -449,7 +449,7 @@ function drawBeam() {
 }
 
 function drawObstacle(o: Obstacle) {
-  const strip = assets.vehicles[KINDS[o.kind].sprite];
+  const strip = assets.vehicles[o.sprite];
   const { frameWidth: fw, frameHeight: fh } = strip;
   const x = Math.round(o.x - camX);
   if (x > W || x + fw < 0) return;
@@ -544,7 +544,7 @@ function drawTitle() {
 
   const below = sy + 18 * s + 18;
   if (Math.floor(time * 1.6) % 2 === 0 && !portrait()) text('TAP TO START', W / 2, below, 16, '#f3eedc', 'center');
-  text('TAP: JUMP   HOLD: GLIDE   EYE BUTTON OR X: GLARE', W / 2, H - 30, 8, '#b9b0d6', 'center');
+  text('TAP: JUMP   TAP AGAIN: BOUNCE   HOLD: GLIDE   EYE OR X: GLARE', W / 2, H - 30, 8, '#b9b0d6', 'center');
   if (best > 0) text(`BEST ${best}`, 16, 16, 8, '#b9b0d6');
 }
 

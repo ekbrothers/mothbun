@@ -17,7 +17,7 @@ export interface BuildingArt {
 export const BUILDINGS = ['music-hall', 'mother-of-god', 'museum-center'] as const;
 export type BuildingName = (typeof BUILDINGS)[number];
 
-export const VEHICLES = ['scooter', 'pedal-wagon', 'streetcar', 'stroller'] as const;
+export const VEHICLES = ['scooter', 'scooter-guy', 'pedal-wagon', 'streetcar', 'stroller'] as const;
 export type VehicleName = (typeof VEHICLES)[number];
 
 // A strip of equal-width frames, side by side.

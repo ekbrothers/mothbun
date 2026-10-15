@@ -14,9 +14,10 @@ export class Player {
   private sinceGround = 0;
   private landT = 0;
   private walkT = 0;
+  private bounced = false; // used the one air jump since leaving the ground
 
   reset() {
-    Object.assign(this, { y: 0, vy: 0, grounded: true, gliding: false, invuln: 0, glareT: 0, glareCd: 0, sinceGround: 0, landT: 0 });
+    Object.assign(this, { y: 0, vy: 0, grounded: true, gliding: false, invuln: 0, glareT: 0, glareCd: 0, sinceGround: 0, landT: 0, bounced: false });
   }
 
   // Returns true on the frame a jump starts. `floor` is the height of whatever is under
@@ -36,6 +37,12 @@ export class Player {
       this.grounded = false;
       this.sinceGround = T.coyote + 1;
       jumped = true;
+    } else if (!this.grounded && !this.bounced && input.pressedWithin(60) && (this.y > 40 || this.vy > 0)) {
+      // one double bounce per jump; a tap just before landing is left for the jump buffer
+      input.consume();
+      this.vy = T.doubleJumpVelocity;
+      this.bounced = true;
+      jumped = true;
     }
 
     if (!input.held && this.vy > 0) this.vy -= T.gravity * dt * T.jumpCut;
@@ -47,6 +54,7 @@ export class Player {
     this.y += this.vy * dt;
     if (this.y <= floor && this.vy <= 0) {
       if (!this.grounded) this.landT = 0.1;
+      this.bounced = false;
       this.y = floor;
       this.vy = 0;
       this.grounded = true;
